@@ -12,7 +12,8 @@
 - **No backend**, database, or persistent learning history in the initial version.
 - **Consistent AI-generated artwork:** each room is painted as **one complete illustration**, then split into interactive objects by a build script. **No scene editor is required.**
 - **High-quality prerecorded audio**, with no speech synthesis required during play.
-- **Scale target:** approximately **12 rooms** and **50 interactive objects per room** (~600 vocabulary entries, fewer once shared words such as *chair* or *table* are counted once).
+- **Scale target:** approximately **12 rooms** and **25 interactive objects per room** (~300 vocabulary entries, fewer once shared words such as *chair* or *table* are counted once).
+- **Art style:** **cartoon, kawaii, isometric view** for every room (§5).
 - **Keep game rules independent** of artwork and scene layout.
 
 ### Target Platform
@@ -209,7 +210,7 @@ These are proposed defaults, to be confirmed (see §11):
 ## 5. Content Creation Workflow
 
 1. **Define** the room's vocabulary: add new words to the lexicon (reusing existing IDs) and list them in the room manifest.
-2. **Paint** the room with AI image generation at **2048 × 1536**, following a shared **style guide** (palette, line style, lighting, camera angle) and a reusable prompt template that names the room's objects.
+2. **Paint** the room with AI image generation at **2048 × 1536**, following a shared **style guide** (palette, line style, lighting, camera angle) and a reusable prompt template that names the room's objects. The style is fixed for all rooms: **cartoon, kawaii, isometric view** — a cutaway room seen from above at an isometric angle, rounded friendly shapes, soft pastel colours, clean dark outlines, flat or lightly shaded colour, no text.
 3. **Review and fix** the painting: every manifest object must be present, recognizable, and not hidden. Use **inpainting** to add, replace, or fix individual objects rather than regenerating the whole room.
 4. **Mask** each interactive instance, using a segmentation tool (click the object to get its outline, then clean up) or a layer per object in an image editor. Export each mask as `masks/<objectId>.png` at the painting's size.
 5. **Build** the room with `npm run build:rooms`. It produces the background, atlas, hit map, and layout, then reports problems: missing or extra masks, overlaps, regions too small, empty masks.
@@ -218,7 +219,7 @@ These are proposed defaults, to be confirmed (see §11):
 8. **Validate** with `npm run validate:content` (also run in CI, see §8).
 9. **Preview** in a desktop browser (and on the iPad from M5), run the interaction tests, and repeat until acceptable.
 
-> **Realistic expectation:** a single AI-generated image rarely contains 50 correct, distinct objects on the first try. Expect to start with a strong base painting and add objects through inpainting. The manifest's object list is the checklist.
+> **Realistic expectation:** a single AI-generated image rarely contains 25 correct, distinct objects on the first try. Expect to start with a strong base painting and add objects through inpainting. The manifest's object list is the checklist.
 
 ### Interaction and Layout Guidelines
 
@@ -234,7 +235,7 @@ These are proposed defaults, to be confirmed (see §11):
 
 ## 6. Performance and Multi-Room Support
 
-Twelve rooms with around fifty objects each is easy for a laptop and a reasonable target for a modern iPad browser, **provided assets are sized sensibly**. The iPad is the constrained device, so budgets are set for it.
+Twelve rooms with around 25 objects each is easy for a laptop and a reasonable target for a modern iPad browser, **provided assets are sized sensibly**. The iPad is the constrained device, so budgets are set for it.
 
 The main constraints are:
 
@@ -418,7 +419,7 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 - **Complete `build:rooms`:** object cut-outs and atlas, overlap resolution (size or `depth`), small-object padding, `debug-hits.png`, and clear error reports, with unit tests on synthetic masks.
 - **Highlight and feedback** on cut-outs: glow (or build-time outline) and scale-up pulse.
 - `validate:content` in CI.
-- Produce the **final kitchen painting** with ~50 objects, using inpainting as needed, and all its masks.
+- Produce the **final kitchen painting** with ~25 objects in the cartoon, kawaii, isometric style, using inpainting as needed, and all its masks.
 - **Exit:** the final kitchen passes validation, unit tests, and end-to-end tests, and is approved in a desktop browser for consistency and click accuracy.
 
 ### M3: Audio
@@ -480,6 +481,11 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 ---
 
 ## Revision Notes
+
+**Revision 8: scope and art style**
+
+- Target lowered to **25 objects per room** (~300 words over 12 rooms).
+- Art style fixed: **cartoon, kawaii, isometric view** (§1, §5).
 
 **Revision 7: M2 glow feedback**
 
