@@ -1,0 +1,7 @@
+# Keep LF line endings in the repository and working copy (matches Prettier).
+* text=auto eol=lf
+
+*.png binary
+*.webp binary
+*.jpg binary
+*.mp3 binary

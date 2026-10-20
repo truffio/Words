@@ -1,0 +1,7 @@
+dist/
+public/assets/rooms/
+playwright-report/
+test-results/
+package-lock.json
+# Design documents are formatted by hand.
+*.md

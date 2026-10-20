@@ -1,1 +1,20 @@
+# Personal Claude Code settings
 .claude/settings.local.json
+
+# Dependencies and build output
+node_modules/
+dist/
+
+# Generated room assets (rebuilt by build:rooms)
+public/assets/rooms/
+
+# Test output
+playwright-report/
+test-results/
+
+# Logs and editor files
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store

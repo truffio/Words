@@ -1,0 +1,22 @@
+import { defineConfig, devices } from '@playwright/test';
+
+const PORT = 4173;
+
+export default defineConfig({
+  testDir: 'tests/e2e',
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  use: {
+    baseURL: `http://localhost:${PORT}`,
+    screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
+  },
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // Serves the production build; `npm run test:e2e` builds it first.
+  webServer: {
+    command: 'npm run preview',
+    url: `http://localhost:${PORT}`,
+    reuseExistingServer: !process.env.CI,
+  },
+});
