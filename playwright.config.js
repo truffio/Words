@@ -13,9 +13,10 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  // Serves the production build; `npm run test:e2e` builds it first.
+  // Serves the test build (production build plus the test bridge);
+  // `npm run test:e2e` builds it first.
   webServer: {
-    command: 'npm run preview',
+    command: 'npx vite preview --outDir dist-test',
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
   },

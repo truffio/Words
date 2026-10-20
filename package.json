@@ -8,14 +8,19 @@
     "node": ">=22"
   },
   "scripts": {
+    "predev": "npm run build:rooms",
     "dev": "vite",
+    "prebuild": "npm run build:rooms",
     "build": "vite build",
+    "build:test": "npm run build:rooms && vite build --mode test --outDir dist-test",
+    "build:rooms": "node tools/build-rooms.js",
+    "make:placeholder-kitchen": "node tools/make-placeholder-kitchen.js",
     "preview": "vite preview",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write . && eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "npm run build && playwright test"
+    "test:e2e": "npm run build:test && playwright test"
   },
   "dependencies": {
     "phaser": "4.2.1"
@@ -23,10 +28,12 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.64.1",
+    "ajv": "8.20.0",
     "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",
     "globals": "17.13.0",
     "prettier": "3.9.10",
+    "sharp": "0.35.5",
     "vite": "8.3.4",
     "vitest": "5.0.5"
   }

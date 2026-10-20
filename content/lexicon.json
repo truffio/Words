@@ -1,0 +1,47 @@
+{
+  "refrigerator": {
+    "label": "refrigerator",
+    "prompt": "Find the refrigerator.",
+    "accepted": ["refrigerator", "fridge"]
+  },
+  "stove": {
+    "label": "stove",
+    "prompt": "Find the stove.",
+    "accepted": ["stove"]
+  },
+  "sink": {
+    "label": "sink",
+    "prompt": "Find the sink.",
+    "accepted": ["sink"]
+  },
+  "cupboard": {
+    "label": "cupboard",
+    "prompt": "Find the cupboard.",
+    "accepted": ["cupboard"]
+  },
+  "window": {
+    "label": "window",
+    "prompt": "Find the window.",
+    "accepted": ["window"]
+  },
+  "clock": {
+    "label": "clock",
+    "prompt": "Find the clock.",
+    "accepted": ["clock"]
+  },
+  "table": {
+    "label": "table",
+    "prompt": "Find the table.",
+    "accepted": ["table"]
+  },
+  "chair": {
+    "label": "chair",
+    "prompt": "Find a chair.",
+    "accepted": ["chair"]
+  },
+  "cup": {
+    "label": "cup",
+    "prompt": "Find the cup.",
+    "accepted": ["cup", "mug"]
+  }
+}

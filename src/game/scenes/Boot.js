@@ -1,9 +1,8 @@
 import { Scene } from 'phaser';
-import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../../core/display.js';
 
 /**
- * Placeholder scene for M0: shows the logical canvas so scaling can be checked.
- * Replaced by the Boot / Preload / RoomScene flow in M1.
+ * First scene. Nothing to load yet: shared assets (UI, sounds) arrive in later
+ * milestones. Waits for the app to request a room.
  */
 export class Boot extends Scene {
   constructor() {
@@ -11,17 +10,7 @@ export class Boot extends Scene {
   }
 
   create() {
-    // Frame along the canvas edges, to make the scaled area visible.
-    this.add
-      .rectangle(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, LOGICAL_WIDTH - 16, LOGICAL_HEIGHT - 16)
-      .setStrokeStyle(16, 0x1f2a44);
-
-    this.add
-      .text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, 'Words', {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '220px',
-        color: '#1f2a44',
-      })
-      .setOrigin(0.5);
+    this.registry.set('booted', true);
+    this.game.events.emit('booted');
   }
 }

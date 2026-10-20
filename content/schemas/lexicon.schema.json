@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/truffio/Words/content/schemas/lexicon.schema.json",
+  "title": "Lexicon",
+  "description": "Shared English vocabulary. Keys are stable object IDs (lowercase kebab-case).",
+  "type": "object",
+  "propertyNames": { "pattern": "^[a-z]+(-[a-z]+)*$" },
+  "minProperties": 1,
+  "additionalProperties": {
+    "type": "object",
+    "required": ["label", "prompt", "accepted"],
+    "additionalProperties": false,
+    "properties": {
+      "label": {
+        "description": "Display name, e.g. \"refrigerator\".",
+        "type": "string",
+        "minLength": 1
+      },
+      "prompt": {
+        "description": "Written instruction for Listen and find, e.g. \"Find the refrigerator.\"",
+        "type": "string",
+        "minLength": 1
+      },
+      "accepted": {
+        "description": "Accepted spellings for Recall and spell, lowercase.",
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "type": "string", "pattern": "^[a-z]+( [a-z]+)*$" }
+      },
+      "audio": {
+        "description": "Audio clip paths (added in M3).",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "word": { "type": "string" },
+          "prompt": { "type": "string" }
+        }
+      }
+    }
+  }
+}

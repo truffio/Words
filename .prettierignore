@@ -1,4 +1,5 @@
 dist/
+dist-test/
 public/assets/rooms/
 playwright-report/
 test-results/

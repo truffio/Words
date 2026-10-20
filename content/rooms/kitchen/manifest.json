@@ -1,0 +1,15 @@
+{
+  "id": "kitchen",
+  "title": "Kitchen",
+  "objects": [
+    { "id": "refrigerator", "difficulty": 1 },
+    { "id": "stove", "difficulty": 1 },
+    { "id": "sink", "difficulty": 1 },
+    { "id": "table", "difficulty": 1 },
+    { "id": "chair", "difficulty": 1 },
+    { "id": "window", "difficulty": 1 },
+    { "id": "cupboard", "difficulty": 2 },
+    { "id": "clock", "difficulty": 2 },
+    { "id": "cup", "difficulty": 2 }
+  ]
+}

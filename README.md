@@ -4,7 +4,7 @@ An English vocabulary game for children, played in the browser. The child explor
 
 - Game concept: [WORDS.md](WORDS.md)
 - Technical design and implementation plan: [TECHNICAL.md](TECHNICAL.md)
-- Milestone reports: [M0: Project Setup](docs/milestones/M0.md)
+- Milestone reports: [M0: Project Setup](docs/milestones/M0.md), [M1: First Playable Room](docs/milestones/M1.md)
 
 ## Getting started
 
@@ -16,18 +16,23 @@ npx playwright install chromium   # once, for end-to-end tests
 npm run dev                        # http://localhost:8080
 ```
 
+Add `?debug=hits` to the URL (dev server only) to see each object's clickable area.
+
 ## Scripts
 
 | Script | What it does |
 |--------|--------------|
-| `npm run dev` | Start the Vite dev server on port 8080. |
-| `npm run build` | Build the static game into `dist/`. |
+| `npm run dev` | Build the rooms, then start the Vite dev server on port 8080. |
+| `npm run build` | Build the rooms, then the static game into `dist/`. |
+| `npm run build:rooms` | Turn each room's painting and masks into `public/assets/rooms/<room>/`. |
+| `npm run build:test` | Build the test version (with the test bridge) into `dist-test/`. |
+| `npm run make:placeholder-kitchen` | Redraw the placeholder kitchen painting and masks. |
 | `npm run preview` | Serve the production build on port 4173. |
 | `npm run lint` | Check code with ESLint and formatting with Prettier. |
 | `npm run format` | Format with Prettier and apply ESLint fixes. |
 | `npm run test` | Run the unit tests (Vitest). |
 | `npm run test:watch` | Run the unit tests in watch mode. |
-| `npm run test:e2e` | Build, serve, and run the end-to-end tests (Playwright, Chromium). |
+| `npm run test:e2e` | Build the test version, serve it, and run the end-to-end tests (Playwright, Chromium). |
 
 CI runs lint, unit tests, build, and end-to-end tests on every push and pull request (`.github/workflows/ci.yml`).
 
@@ -35,7 +40,7 @@ CI runs lint, unit tests, build, and end-to-end tests on every push and pull req
 
 ```
 content/          Source of truth for vocabulary and rooms (committed)
-  lexicon.json      Shared English words (from M1)
+  lexicon.json      Shared English words
   schemas/          JSON Schemas for lexicon and manifests
   rooms/<room>/     manifest.json, room.png painting, masks/
 public/assets/    Static files served as-is
@@ -46,6 +51,7 @@ src/
   game/             Phaser scenes, input, feedback, audio
   shell/            HTML/CSS user interface around the canvas
   test-bridge/      Test-only hooks for end-to-end tests
+  app.js            Connects shell, game, and core
   main.js           Entry point
 tools/            Build and content scripts (build:rooms, validation, audio)
 tests/

@@ -4,7 +4,7 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['dist/', 'public/assets/rooms/', 'playwright-report/', 'test-results/'],
+    ignores: ['dist/', 'dist-test/', 'public/assets/rooms/', 'playwright-report/', 'test-results/'],
   },
   js.configs.recommended,
   {

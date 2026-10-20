@@ -1,6 +1,8 @@
 import { AUTO, Game, Scale } from 'phaser';
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../core/display.js';
 import { Boot } from './scenes/Boot.js';
+import { Preload } from './scenes/Preload.js';
+import { RoomScene } from './scenes/RoomScene.js';
 
 /**
  * Creates the Phaser game inside the given DOM element.
@@ -18,6 +20,24 @@ export function startGame(parent) {
       mode: Scale.FIT,
       autoCenter: Scale.CENTER_BOTH,
     },
-    scene: [Boot],
+    scene: [Boot, Preload, RoomScene],
+  });
+}
+
+/**
+ * Loads a room and resolves when it is displayed.
+ * @param {Game} game
+ * @param {string} roomId
+ * @returns {Promise<{ roomId: string, layout: object, hitmap: object, scene: RoomScene }>}
+ */
+export function loadRoom(game, roomId) {
+  return new Promise((resolve) => {
+    game.events.once('roomReady', resolve);
+    const start = () => {
+      if (game.scene.isActive('Room')) game.scene.stop('Room');
+      game.scene.start('Preload', { roomId });
+    };
+    if (game.registry.get('booted')) start();
+    else game.events.once('booted', start);
   });
 }

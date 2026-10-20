@@ -116,7 +116,7 @@ Each room starts from **one painting** in which every object is already drawn in
  ┌─────────────────────────────────────────────────────────────┐
  │ background.webp   the full painting, objects included       │
  │ objects.webp/json atlas of object cut-outs (transparent)    │
- │ hitmap.png        1 byte per pixel: instance index, 0=none  │
+ │ hitmap.bin        instance index per pixel (0=none), RLE    │
  │ layout.json       per instance: objectId, frame, position,  │
  │                   bounds, tap point                          │
  │ debug-hits.png    painting with colored hit regions (review)│
@@ -127,9 +127,10 @@ Each room starts from **one painting** in which every object is already drawn in
 - **Cut-outs** are made by applying the mask to the painting (with 1–2 px edge feathering), trimming to the bounding box, and packing into the atlas. Their position comes from the mask's bounding box.
 - **The hit map is the single authority for taps.** Each pixel of the hit map holds the index of the instance that owns it, or 0 for none. One lookup per tap answers *which object was touched*, with no rectangles, no overlap ambiguity, and no dependency on draw order.
   - Stored at **half resolution** (1024 × 768, ~0.75 MB as bytes in memory), read once at room load into a `Uint8Array`. Up to 255 instances per room.
+  - **File format:** `hitmap.bin` is **run-length encoded**: little-endian Uint16 pairs `[value, count]` covering the pixels in row-major order (~18 KB for the M1 kitchen). A binary file is used instead of a PNG so that no browser colour management can alter the index values, and so the decoder is a pure function testable in Node (`src/core/hitmap.js`).
   - **Overlaps are resolved at build time.** Masks should not overlap. Where they do, the build assigns contested pixels to the smaller object by default (a cup in front of a cabinet), unless the manifest sets an explicit `depth`. The validator reports every overlap.
   - **Small objects are padded.** Their hit region is grown into free (unowned) pixels until it reaches the minimum tap size (§5), never into another object.
-- **Tap points:** for each instance, the build computes a point guaranteed to be well inside its hit region (the point farthest from the region's edge). Tests tap there, and *Look and identify* can anchor its highlight there.
+- **Tap points:** for each instance, the build computes a point guaranteed to be well inside its hit region (the point farthest from the region's edge, nearest its centroid on ties). Tests tap there, and *Look and identify* can anchor its highlight there.
 
 ### Separation of Concerns
 
@@ -174,16 +175,17 @@ Art can change without touching rules, and vocabulary can change without touchin
   ]
 }
 
-// public/assets/rooms/kitchen/layout.json (generated)
+// public/assets/rooms/kitchen/layout.json (generated; M1 fields)
 {
   "room": "kitchen",
   "size": [2048, 1536],
-  "hitmapScale": 0.5,
+  "hitmap": { "width": 1024, "height": 768 },
   "instances": [
-    { "index": 1, "objectId": "refrigerator", "frame": "refrigerator",
-      "x": 112, "y": 240, "w": 380, "h": 900, "tap": [300, 700] }
+    { "index": 6, "name": "refrigerator", "objectId": "refrigerator",
+      "bounds": { "x": 116, "y": 256, "w": 408, "h": 928 }, "tap": [321, 721] }
   ]
 }
+// M2 adds the atlas frame of each instance's cut-out.
 ```
 
 ### Proposed Gameplay Rules
@@ -239,7 +241,7 @@ The raw number of vocabulary entries is **not** a constraint, and hit testing co
 |------|--------|
 | Room background | 2048 × 1536 WebP, ≤ 600 KB |
 | Room object atlas | 1–2 pages of ≤ 2048², ≤ 1.5 MB total |
-| Room hit map | 1024 × 768 PNG (grayscale), ≤ 100 KB; ~0.75 MB in memory |
+| Room hit map | 1024 × 768, run-length encoded `hitmap.bin`, ≤ 100 KB; ~0.75 MB in memory |
 | Room audio | ~100 short mono MP3 clips (64–96 kbps), ≤ 1.5 MB |
 | Room switch time (cached) | ≤ 1 s |
 | Room first load on Wi-Fi | ≤ 3 s |
@@ -304,7 +306,7 @@ The raw number of vocabulary entries is **not** a constraint, and hit testing co
 
 ### Test Bridge
 
-- Enabled only when the build is run with a test flag (`import.meta.env` mode or `?test=1` in test builds). It is **stripped from production builds**.
+- Enabled only in the **test build** (`npm run build:test`, i.e. `vite build --mode test` into `dist-test/`), which `npm run test:e2e` builds and serves. It is **stripped from production builds** (`import.meta.env.MODE` is replaced at build time, so the code is removed). The `?debug=hits` overlay follows the same rule (dev and test builds only).
 - Exposes `window.__wordsTest` with:
   - the current challenge's object ID
   - each instance's **tap point**, converted to screen coordinates (from the generated layout, never hardcoded)
@@ -387,6 +389,8 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 
 ### M1: First Playable Room (Kitchen, text-only Listen and Find)
 
+> **Status: done.** See the [M1 completion report](docs/milestones/M1.md).
+
 - **Placeholder kitchen:** one AI-generated kitchen painting and about **8–10 masks** made by hand in any image editor. No tool evaluation or style guide yet.
 - **Minimal `build:rooms`:** masks → hit map and layout (positions, tap points). Overlaps cause an error rather than being resolved automatically.
 - **Core logic:** seedable RNG; lexicon and manifest loading; hit-map lookup and coordinate conversion; exercise controller (selection without repeats, answer evaluation, retry → reveal rule, round end); session state and scoring.
@@ -450,8 +454,8 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 
 | # | Decision | Proposed default | Settle by |
 |---|----------|------------------|-----------|
-| A | Storage of room paintings and masks (~5 MB per room) | Final painting and masks in Git (needed by the build); generation drafts and variants outside the repo; Git LFS if the repo grows too large | M1 |
-| B | Round length; attempts before reveal; scoring rule | 10 challenges; reveal after 2 wrong attempts; correct = without reveal | M1 |
+| A | Storage of room paintings and masks (~5 MB per room) | **Settled (M1):** final painting and masks in Git under `content/rooms/<room>/` (needed by the build); generation drafts and variants outside the repo; Git LFS if the repo grows too large | M1 |
+| B | Round length; attempts before reveal; scoring rule | **Settled (M1), to revisit after playtesting:** 10 challenges; reveal after 2 wrong attempts; correct = without reveal | M1 |
 | C | Mask authoring tool: segmentation tool vs. image-editor layers | Compared on the real kitchen | M2 |
 | D | AI image generator (with inpainting) and style guide | One tool for all rooms, for consistency | M2 |
 | E | TTS provider and **voice/accent** (e.g. Canadian or US English, to match the immersion program) | Chosen from sample clips | M3 |
@@ -464,6 +468,12 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 ---
 
 ## Revision Notes
+
+**Revision 5: updates from M1**
+
+- The hit map is stored as a run-length encoded `hitmap.bin` instead of a PNG (§4), with the layout example updated to the generated format.
+- The test bridge and `?debug=hits` live in a separate **test build** (`dist-test/`), so end-to-end tests run against production code plus the bridge (§8).
+- Open decisions A and B settled with their proposed defaults.
 
 **Revision 4: laptop/PC first, iPad later**
 
