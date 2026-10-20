@@ -344,6 +344,7 @@ Words/
 ├── vite.config.js
 ├── playwright.config.js
 ├── .github/workflows/ci.yml
+├── docs/milestones/             # one completion report per milestone (M0.md, …)
 ├── content/                     # source of truth (committed)
 │   ├── lexicon.json
 │   ├── schemas/                 # JSON Schemas
@@ -376,6 +377,8 @@ Each milestone ends with a **demo in a laptop/PC browser** (and, from M5, **on t
 The order aims for a **playable room as early as possible**: M1 delivers a text-only *Listen and find* round in a desktop browser (the prompt is displayed, the child clicks the object). Art quality, the full room pipeline, audio, the other activities, and iPad support are added on top of that working game.
 
 ### M0: Project Setup
+
+> **Status: done.** See the [M0 completion report](docs/milestones/M0.md).
 
 - Create the Vite + Phaser 4 project from Phaser's official template, with ESLint, Prettier, Vitest, and Playwright (Chromium).
 - CI workflow running lint, unit tests, and build.
