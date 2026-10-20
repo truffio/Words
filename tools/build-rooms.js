@@ -3,10 +3,12 @@
  * public/assets/rooms/<room>/:
  *
  *   background.webp   the painting
- *   objects.json      Phaser multi-atlas of object cut-outs, with pages objects-<n>.webp
+ *   objects.json      Phaser multi-atlas of object cut-outs and their white glow halos,
+ *                     with pages objects-<n>.webp
  *   hitmap.bin        instance index per hit-map pixel (half resolution), run-length
  *                     encoded, after overlap resolution and padding
- *   layout.json       instances: objectId, bounds, hit bounds, tap point, cut-out frame
+ *   layout.json       instances: objectId, bounds, hit bounds, tap point, cut-out and
+ *                     glow frames
  *
  * and a review image, reports/rooms/<room>-debug-hits.png, showing every hit region.
  *
@@ -19,7 +21,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../src/core/display.js';
 import { encodeHitmap } from '../src/core/hitmap.js';
-import { cutout, packShelves, regionOverlay } from './lib/room-build.js';
+import { cutout, glowHalo, packShelves, regionOverlay } from './lib/room-build.js';
 import { analyseRoom, HITMAP_FACTOR, loadContent } from './lib/room-content.js';
 import { report } from './lib/report.js';
 
@@ -52,11 +54,20 @@ const colourOf = (value) => PALETTE[(value - 1) % PALETTE.length];
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 const escapeXml = (s) => s.replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
+/** Glow halo width around each object (logical px). */
+const GLOW_RADIUS = 24;
+
+/** Frame name of an instance's glow halo in the atlas. */
+const glowFrame = (name) => `${name}:glow`;
+
 async function writeAtlas(room, analysis, rgba, outDir) {
-  const pieces = room.masks.map((mask, i) => ({
-    name: mask.name,
-    ...cutout(rgba, analysis.index, LOGICAL_WIDTH, LOGICAL_HEIGHT, i + 1, analysis.bounds[i]),
+  const args = (i) => [analysis.index, LOGICAL_WIDTH, LOGICAL_HEIGHT, i + 1, analysis.bounds[i]];
+  const cutouts = room.masks.map((mask, i) => ({ name: mask.name, ...cutout(rgba, ...args(i)) }));
+  const halos = room.masks.map((mask, i) => ({
+    name: glowFrame(mask.name),
+    ...glowHalo(...args(i), GLOW_RADIUS),
   }));
+  const pieces = [...cutouts, ...halos];
   const { pages, placements } = packShelves(pieces);
 
   const textures = [];
@@ -112,7 +123,7 @@ async function writeAtlas(room, analysis, rgba, outDir) {
     path.join(outDir, 'objects.json'),
     `${JSON.stringify({ textures, meta: { app: 'words build:rooms' } }, null, 2)}\n`,
   );
-  return { pieces, pages, bytes };
+  return { cutouts, halos, pages, bytes };
 }
 
 async function writeDebugHits(room, analysis, layout) {
@@ -189,7 +200,8 @@ async function buildRoom(room) {
     hitmap: { width: analysis.hitmap.width, height: analysis.hitmap.height },
     atlas: 'objects.json',
     instances: room.masks.map((mask, i) => {
-      const piece = atlas.pieces[i];
+      const piece = atlas.cutouts[i];
+      const halo = atlas.halos[i];
       return {
         index: i + 1,
         name: mask.name,
@@ -201,6 +213,7 @@ async function buildRoom(room) {
           (analysis.taps[i][1] + 0.5) * HITMAP_FACTOR,
         ],
         cutout: { frame: mask.name, x: piece.x, y: piece.y },
+        glow: { frame: glowFrame(mask.name), x: halo.x, y: halo.y },
       };
     }),
   };

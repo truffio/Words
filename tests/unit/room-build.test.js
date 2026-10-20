@@ -3,6 +3,7 @@ import {
   combineMasks,
   cutout,
   downsample,
+  glowHalo,
   instanceBounds,
   packShelves,
   padRegions,
@@ -158,6 +159,38 @@ describe('cutout', () => {
     expect(alpha(1, 3)).toBe(Math.round((6 * 255) / 9));
     expect(alpha(0, 3)).toBe(Math.round((3 * 255) / 9));
     expect(alpha(0, 0)).toBe(Math.round((1 * 255) / 9));
+  });
+});
+
+describe('glowHalo', () => {
+  // A 3 × 3 square in the middle of a 20 × 20 map.
+  const width = 20;
+  const index = new Uint8Array(width * width);
+  for (let y = 9; y <= 11; y++) for (let x = 9; x <= 11; x++) index[y * width + x] = 1;
+  const halo = glowHalo(index, width, width, 1, { x: 9, y: 9, w: 3, h: 3 }, 4);
+  const alpha = (x, y) => halo.data[((y - halo.y) * halo.w + (x - halo.x)) * 4 + 3];
+
+  it('covers the instance plus the radius on every side', () => {
+    expect(halo).toMatchObject({ x: 5, y: 5, w: 11, h: 11 });
+  });
+
+  it('is opaque over the instance and fades with distance', () => {
+    expect(alpha(10, 10)).toBe(255);
+    expect(alpha(12, 10)).toBe(Math.round(255 * 0.75 ** 1.5));
+    expect(alpha(13, 10)).toBe(Math.round(255 * 0.5 ** 1.5));
+    expect(alpha(15, 10)).toBe(0);
+    expect(alpha(12, 10)).toBeGreaterThan(alpha(13, 10));
+  });
+
+  it('uses near-Euclidean distance at the corners', () => {
+    // One pixel diagonally from the corner: distance √2, not 2.
+    expect(alpha(12, 12)).toBe(Math.round(255 * (1 - Math.SQRT2 / 4) ** 1.5));
+  });
+
+  it('is white and clipped to the map', () => {
+    const edge = glowHalo(index, width, width, 1, { x: 9, y: 9, w: 3, h: 3 }, 12);
+    expect(edge).toMatchObject({ x: 0, y: 0, w: 20, h: 20 });
+    expect([...edge.data.slice(0, 3)]).toEqual([255, 255, 255]);
   });
 });
 

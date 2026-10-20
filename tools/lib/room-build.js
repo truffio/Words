@@ -346,6 +346,69 @@ export function cutout(rgba, index, width, height, value, bounds) {
 }
 
 /**
+ * Builds a soft white halo around one instance, for glow feedback without shader cost:
+ * opaque over the instance, fading to clear `radius` pixels away from its edge
+ * (approximate Euclidean distance from a two-pass chamfer transform). The game tints it
+ * and draws it behind the instance's cut-out.
+ * @param {Uint8Array} index full-resolution index map
+ * @param {number} width
+ * @param {number} height
+ * @param {number} value 1-based instance index
+ * @param {{ x: number, y: number, w: number, h: number }} bounds
+ * @param {number} radius in pixels
+ * @returns {{ data: Uint8Array, x: number, y: number, w: number, h: number }}
+ */
+export function glowHalo(index, width, height, value, bounds, radius) {
+  const x0 = Math.max(0, bounds.x - radius);
+  const y0 = Math.max(0, bounds.y - radius);
+  const x1 = Math.min(width, bounds.x + bounds.w + radius);
+  const y1 = Math.min(height, bounds.y + bounds.h + radius);
+  const w = x1 - x0;
+  const h = y1 - y0;
+
+  const DIAGONAL = Math.SQRT2;
+  const dist = new Float32Array(w * h).fill(Infinity);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (index[(y0 + y) * width + x0 + x] === value) dist[y * w + x] = 0;
+    }
+  }
+  const relax = (p, q, cost) => {
+    if (dist[q] + cost < dist[p]) dist[p] = dist[q] + cost;
+  };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      if (x > 0) relax(p, p - 1, 1);
+      if (y > 0) {
+        relax(p, p - w, 1);
+        if (x > 0) relax(p, p - w - 1, DIAGONAL);
+        if (x < w - 1) relax(p, p - w + 1, DIAGONAL);
+      }
+    }
+  }
+  for (let y = h - 1; y >= 0; y--) {
+    for (let x = w - 1; x >= 0; x--) {
+      const p = y * w + x;
+      if (x < w - 1) relax(p, p + 1, 1);
+      if (y < h - 1) {
+        relax(p, p + w, 1);
+        if (x < w - 1) relax(p, p + w + 1, DIAGONAL);
+        if (x > 0) relax(p, p + w - 1, DIAGONAL);
+      }
+    }
+  }
+
+  const data = new Uint8Array(w * h * 4);
+  for (let p = 0; p < w * h; p++) {
+    const d = dist[p];
+    const t = d >= radius ? 0 : 1 - d / radius;
+    data.set([255, 255, 255, Math.round(255 * t ** 1.5)], p * 4);
+  }
+  return { data, x: x0, y: y0, w, h };
+}
+
+/**
  * Packs rectangles into pages with a simple shelf algorithm (tallest first).
  * @param {{ name: string, w: number, h: number }[]} items
  * @param {{ pageSize?: number, padding?: number }} [options]

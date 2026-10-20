@@ -1,4 +1,4 @@
-import { Scene } from 'phaser';
+import { Scene, WEBGL } from 'phaser';
 import { decodeHitmap, instanceAt } from '../../core/hitmap.js';
 import { regionCanvas } from '../regions.js';
 
@@ -7,6 +7,15 @@ const COLORS = {
   tryAgain: [240, 140, 40],
   reveal: [255, 196, 0],
 };
+
+const GLOW_COLORS = {
+  correct: 0x3ccf5a,
+  tryAgain: 0xffa03c,
+  reveal: 0xffd000,
+};
+
+/** Objects smaller than this ring (logical px) get the reveal ring around them. */
+const MAX_RING_RADIUS = 160;
 
 /**
  * Displays any room from its generated files and turns clicks/taps into object
@@ -79,22 +88,80 @@ export class RoomScene extends Scene {
 
   /** @param {import('../../core/exercise.js').AnswerResult} result */
   showFeedback(result) {
-    if (result.outcome === 'correct') {
-      this.highlight(this.lastTapped, COLORS.correct, { pulse: true });
-    } else if (result.outcome === 'tryAgain') {
-      this.highlight(this.lastTapped, COLORS.tryAgain, { fadeOut: true });
-    } else {
-      this.clearFeedback();
-      for (const instance of this.layout.instances) {
-        if (instance.objectId === result.objectId) {
-          this.highlight(instance, COLORS.reveal, { pulse: true });
-          this.marker(instance);
-        }
-      }
+    this.clearFeedback();
+    const kind = result.outcome;
+    const instances =
+      kind === 'reveal'
+        ? this.layout.instances.filter((i) => i.objectId === result.objectId)
+        : [this.lastTapped];
+    const options = { pulse: kind !== 'tryAgain', fadeOut: kind === 'tryAgain' };
+
+    for (const instance of instances) {
+      // Tinting needs WebGL; the Canvas renderer falls back to a region overlay.
+      if (this.renderer.type === WEBGL && instance.glow) this.glow(instance, kind, options);
+      else this.regionHighlight(instance, COLORS[kind], options);
+      if (kind === 'reveal') this.marker(instance);
     }
   }
 
-  highlight(instance, rgb, { pulse = false, fadeOut = false } = {}) {
+  /**
+   * Glow feedback: the instance's halo (built by build:rooms, tinted here) behind its
+   * cut-out, which is drawn exactly over the painted object. Both may grow slightly
+   * (pulse) but never move or shrink, so the painted object underneath stays hidden.
+   * @param {object} instance
+   * @param {'correct' | 'tryAgain' | 'reveal'} kind
+   * @param {{ pulse: boolean, fadeOut: boolean }} options
+   */
+  glow(instance, kind, { pulse, fadeOut }) {
+    const halo = this.addFrame(instance.glow).setTint(GLOW_COLORS[kind]).setAlpha(0);
+    const sprite = this.addCutout(instance);
+    this.feedbackLayer.add([halo, sprite]);
+
+    if (fadeOut) {
+      this.tweens.chain({
+        targets: halo,
+        tweens: [
+          { alpha: 0.9, duration: 150 },
+          {
+            alpha: 0,
+            duration: 650,
+            delay: 300,
+            onComplete: () => {
+              halo.destroy();
+              sprite.destroy();
+            },
+          },
+        ],
+      });
+      return;
+    }
+
+    this.tweens.add({ targets: halo, alpha: 1, duration: 200 });
+    if (pulse) {
+      this.tweens.add({
+        targets: halo,
+        alpha: 0.5,
+        duration: 450,
+        delay: 250,
+        yoyo: true,
+        repeat: -1,
+      });
+      // Grow by about 24 logical px at most, whatever the object's size.
+      const grow = 1 + Math.min(0.06, 24 / Math.max(sprite.width, sprite.height));
+      this.tweens.add({
+        targets: [halo, sprite],
+        scale: grow,
+        duration: 450,
+        delay: 250,
+        ease: 'Sine.easeInOut',
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+  }
+
+  /** Fallback highlight: the instance's hit region as a tinted overlay. */
+  regionHighlight(instance, rgb, { pulse = false, fadeOut = false }) {
     const key = `${this.roomId}:region:${instance.index}:${rgb.join(',')}`;
     let region;
     if (this.textures.exists(key)) {
@@ -134,18 +201,33 @@ export class RoomScene extends Scene {
   }
 
   /**
+   * Adds an atlas frame at its layout position. The origin is the frame's centre, so
+   * scaling grows it evenly around the object.
+   * @param {{ frame: string, x: number, y: number }} placement
+   */
+  addFrame({ frame, x, y }) {
+    const image = this.add.image(0, 0, `${this.roomId}:objects`, frame);
+    return image.setPosition(x + image.width / 2, y + image.height / 2);
+  }
+
+  /**
    * Adds an instance's cut-out sprite exactly over its painted pixels.
    * @param {{ cutout: { frame: string, x: number, y: number } }} instance
    */
   addCutout(instance) {
-    const { frame, x, y } = instance.cutout;
-    return this.add.image(x, y, `${this.roomId}:objects`, frame).setOrigin(0, 0);
+    return this.addFrame(instance.cutout);
   }
 
-  /** A ring around the instance's tap point, to draw the eye during a reveal. */
+  /**
+   * A ring to draw the eye during a reveal: around a small object, so it does not hide
+   * it; at the tap point of a large one.
+   */
   marker(instance) {
-    const [x, y] = instance.tap;
-    const ring = this.add.circle(x, y, 60).setStrokeStyle(14, 0xffc400);
+    const { x: bx, y: by, w, h } = instance.bounds;
+    const around = Math.max(w, h) / 2 + 28;
+    const [x, y] = around <= MAX_RING_RADIUS ? [bx + w / 2, by + h / 2] : instance.tap;
+    const radius = around <= MAX_RING_RADIUS ? Math.max(around, 60) : 60;
+    const ring = this.add.circle(x, y, radius).setStrokeStyle(14, 0xffc400);
     this.feedbackLayer.add(ring);
     this.tweens.add({ targets: ring, scale: 1.35, duration: 500, yoyo: true, repeat: -1 });
   }
