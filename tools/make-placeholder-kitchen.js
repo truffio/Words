@@ -2,8 +2,9 @@
  * Draws the M1 placeholder kitchen (content/rooms/kitchen/room.png) and one mask per
  * object instance (content/rooms/kitchen/masks/*.png) from simple vector shapes.
  *
- * This stands in for the AI-generated painting and hand-made masks until M2. Masks are
- * rendered from the same shapes, minus the parts hidden by objects in front.
+ * This stands in for the AI-generated painting and hand-made masks until M2. Each mask is
+ * the object's whole shape, as a hand-made mask would be, so masks may overlap (the right
+ * chair overlaps the stove); build:rooms resolves overlaps, here in favour of the chair.
  *
  * Usage: node tools/make-placeholder-kitchen.js
  */
@@ -166,13 +167,11 @@ async function main() {
   const painting = svg(draw(scenery) + objects.map((o) => draw(o.shapes)).join(''));
   await sharp(Buffer.from(painting)).png().toFile(path.join(ROOM_DIR, 'room.png'));
 
-  for (const [i, object] of objects.entries()) {
-    // This object in white, then every object in front of it in black; no anti-aliasing,
-    // so neighbouring masks never share a pixel.
-    const front = objects.slice(i + 1).map((o) => draw(o.shapes, '#000000'));
+  for (const object of objects) {
+    // The object in white on black, without anti-aliasing.
     const body =
       `<rect width="${W}" height="${H}" fill="#000000"/>` +
-      `<g shape-rendering="crispEdges">${draw(object.shapes, '#ffffff')}${front.join('')}</g>`;
+      `<g shape-rendering="crispEdges">${draw(object.shapes, '#ffffff')}</g>`;
     await sharp(Buffer.from(svg(body)))
       .greyscale()
       .png({ palette: true, colours: 2 })

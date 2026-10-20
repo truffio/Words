@@ -14,6 +14,18 @@ const PALETTE = [
 ];
 
 /**
+ * Debug view (`?debug=cutouts`, dev and test builds only): hides the painting and shows
+ * only the object cut-outs, to check that each one sits exactly where it was painted.
+ * @param {import('./scenes/RoomScene.js').RoomScene} scene
+ */
+export function showCutouts(scene) {
+  scene.children.list
+    .find((child) => child.texture?.key === `${scene.roomId}:background`)
+    ?.setVisible(false);
+  for (const instance of scene.layout.instances) scene.addCutout(instance);
+}
+
+/**
  * Debug overlay (`?debug=hits`, dev and test builds only): draws every hit region in
  * its own colour, labelled with the instance name at its tap point.
  * @param {import('./scenes/RoomScene.js').RoomScene} scene

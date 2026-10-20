@@ -3,6 +3,7 @@ dist-test/
 public/assets/rooms/
 playwright-report/
 test-results/
+reports/
 package-lock.json
 # Design documents are formatted by hand.
 *.md

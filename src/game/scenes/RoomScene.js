@@ -133,6 +133,15 @@ export class RoomScene extends Scene {
     }
   }
 
+  /**
+   * Adds an instance's cut-out sprite exactly over its painted pixels.
+   * @param {{ cutout: { frame: string, x: number, y: number } }} instance
+   */
+  addCutout(instance) {
+    const { frame, x, y } = instance.cutout;
+    return this.add.image(x, y, `${this.roomId}:objects`, frame).setOrigin(0, 0);
+  }
+
   /** A ring around the instance's tap point, to draw the eye during a reveal. */
   marker(instance) {
     const [x, y] = instance.tap;

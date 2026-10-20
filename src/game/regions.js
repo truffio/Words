@@ -6,17 +6,18 @@
 
 /**
  * @param {import('../core/hitmap.js').HitmapGrid} hitmap
- * @param {{ index: number, bounds: { x: number, y: number, w: number, h: number } }} instance
+ * @param {{ index: number, hitBounds: { x: number, y: number, w: number, h: number } }} instance
  * @param {[number, number, number]} rgb
  * @param {{ fill?: number, edge?: number }} [alpha] 0–255
  * @returns {{ canvas: HTMLCanvasElement, x: number, y: number, scale: number }}
  */
 export function regionCanvas(hitmap, instance, rgb, { fill = 110, edge = 255 } = {}) {
   const scale = 2;
-  const x0 = Math.floor(instance.bounds.x / scale);
-  const y0 = Math.floor(instance.bounds.y / scale);
-  const w = Math.ceil(instance.bounds.w / scale) + 1;
-  const h = Math.ceil(instance.bounds.h / scale) + 1;
+  const box = instance.hitBounds;
+  const x0 = Math.floor(box.x / scale);
+  const y0 = Math.floor(box.y / scale);
+  const w = Math.ceil(box.w / scale) + 1;
+  const h = Math.ceil(box.h / scale) + 1;
 
   const canvas = document.createElement('canvas');
   canvas.width = w;

@@ -17,18 +17,20 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm run validate:content
       - run: npm run test
       - run: npm run build
 
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
-      - name: Upload Playwright report
+      - name: Upload test report and room review images
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: test-report
           path: |
             playwright-report/
             test-results/
+            reports/
           retention-days: 14

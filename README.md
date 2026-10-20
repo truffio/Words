@@ -16,7 +16,7 @@ npx playwright install chromium   # once, for end-to-end tests
 npm run dev                        # http://localhost:8080
 ```
 
-Add `?debug=hits` to the URL (dev server only) to see each object's clickable area.
+Add `?debug=hits` to the URL (dev server only) to see each object's clickable area, or `?debug=cutouts` to see only the object cut-outs. `npm run build:rooms` also writes a review image of the clickable areas to `reports/rooms/<room>-debug-hits.png`.
 
 ## Scripts
 
@@ -24,7 +24,8 @@ Add `?debug=hits` to the URL (dev server only) to see each object's clickable ar
 |--------|--------------|
 | `npm run dev` | Build the rooms, then start the Vite dev server on port 8080. |
 | `npm run build` | Build the rooms, then the static game into `dist/`. |
-| `npm run build:rooms` | Turn each room's painting and masks into `public/assets/rooms/<room>/`. |
+| `npm run build:rooms` | Check the content, then turn each room's painting and masks into `public/assets/rooms/<room>/` (background, cut-out atlas, hit map, layout) and a review image in `reports/rooms/`. |
+| `npm run validate:content` | Check the lexicon, manifests, and masks without building; lists all problems and warnings. |
 | `npm run build:test` | Build the test version (with the test bridge) into `dist-test/`. |
 | `npm run make:placeholder-kitchen` | Redraw the placeholder kitchen painting and masks. |
 | `npm run preview` | Serve the production build on port 4173. |
@@ -34,7 +35,7 @@ Add `?debug=hits` to the URL (dev server only) to see each object's clickable ar
 | `npm run test:watch` | Run the unit tests in watch mode. |
 | `npm run test:e2e` | Build the test version, serve it, and run the end-to-end tests (Playwright, Chromium). |
 
-CI runs lint, unit tests, build, and end-to-end tests on every push and pull request (`.github/workflows/ci.yml`).
+CI runs lint, content validation, unit tests, build, and end-to-end tests on every push and pull request (`.github/workflows/ci.yml`).
 
 ## Project layout
 
@@ -53,7 +54,9 @@ src/
   test-bridge/      Test-only hooks for end-to-end tests
   app.js            Connects shell, game, and core
   main.js           Entry point
-tools/            Build and content scripts (build:rooms, validation, audio)
+tools/            Build and content scripts (build:rooms, validate:content, placeholder kitchen)
+  lib/              Shared loading/checking (room-content.js) and pure algorithms (room-build.js)
+reports/          Generated review images (git-ignored)
 tests/
   unit/             Vitest tests
   e2e/              Playwright tests

@@ -35,14 +35,19 @@ export function createApp({ game, root, roomId = 'kitchen' }) {
     shell.showScreen('loading');
     room = getRoom(roomId);
     roomView = await loadRoom(game, roomId);
-    if (new URLSearchParams(location.search).get('debug') === 'hits') showDebugOverlay();
+    const debug = new URLSearchParams(location.search).get('debug');
+    if (debug) showDebugView(debug);
     startRound();
   }
 
-  function showDebugOverlay() {
+  /** @param {string} view 'hits' or 'cutouts' */
+  function showDebugView(view) {
     // Compiled out of production builds.
     if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
-      import('./game/debug-hits.js').then(({ showHitRegions }) => showHitRegions(roomView.scene));
+      import('./game/debug-hits.js').then(({ showCutouts, showHitRegions }) => {
+        if (view === 'hits') showHitRegions(roomView.scene);
+        if (view === 'cutouts') showCutouts(roomView.scene);
+      });
     }
   }
 

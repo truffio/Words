@@ -9,9 +9,10 @@ dist-test/
 # Generated room assets (rebuilt by build:rooms)
 public/assets/rooms/
 
-# Test output
+# Test output and review images
 playwright-report/
 test-results/
+reports/
 
 # Logs and editor files
 *.log

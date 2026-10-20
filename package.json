@@ -14,6 +14,7 @@
     "build": "vite build",
     "build:test": "npm run build:rooms && vite build --mode test --outDir dist-test",
     "build:rooms": "node tools/build-rooms.js",
+    "validate:content": "node tools/validate-content.js",
     "make:placeholder-kitchen": "node tools/make-placeholder-kitchen.js",
     "preview": "vite preview",
     "lint": "eslint . && prettier --check .",

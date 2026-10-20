@@ -25,6 +25,7 @@ export class Preload extends Scene {
     const id = this.roomId;
     this.load.setPath(`assets/rooms/${id}`);
     this.load.image(`${id}:background`, 'background.webp');
+    this.load.multiatlas(`${id}:objects`, 'objects.json');
     this.load.json(`${id}:layout`, 'layout.json');
     this.load.binary(`${id}:hitmap`, 'hitmap.bin', Uint8Array);
   }

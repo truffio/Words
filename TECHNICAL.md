@@ -115,21 +115,24 @@ Each room starts from **one painting** in which every object is already drawn in
         ▼   npm run build:rooms
  ┌─────────────────────────────────────────────────────────────┐
  │ background.webp   the full painting, objects included       │
- │ objects.webp/json atlas of object cut-outs (transparent)    │
+ │ objects.json +    multi-atlas of object cut-outs            │
+ │ objects-<n>.webp  (transparent), pages ≤ 2048 × 2048        │
  │ hitmap.bin        instance index per pixel (0=none), RLE    │
- │ layout.json       per instance: objectId, frame, position,  │
- │                   bounds, tap point                          │
- │ debug-hits.png    painting with colored hit regions (review)│
+ │ layout.json       per instance: objectId, bounds, hit       │
+ │                   bounds, tap point, cut-out frame          │
  └─────────────────────────────────────────────────────────────┘
+   + reports/rooms/<room>-debug-hits.png   review image (not shipped)
 ```
 
+`build:rooms` runs the same checks as `npm run validate:content` first (shared code in `tools/lib/room-content.js`) and stops on any problem. The review image is written outside `public/` so it never ends up in the game build.
+
 - **The background keeps the objects.** Cut-out sprites are drawn exactly over their own pixels, so the room looks identical. A highlight or a slight scale-up pulse never reveals a hole. Feedback must not **move or shrink** a sprite, because the original painted object underneath would show.
-- **Cut-outs** are made by applying the mask to the painting (with 1–2 px edge feathering), trimming to the bounding box, and packing into the atlas. Their position comes from the mask's bounding box.
+- **Cut-outs** are made by applying the resolved mask to the painting (about 1 px of edge feathering from a 3 × 3 blur of the alpha), trimming to the bounding box plus 1 px, and packing into the atlas with a shelf packer. Their position comes from the mask's bounding box. `?debug=cutouts` (dev and test builds) hides the painting to check that every cut-out sits in place.
 - **The hit map is the single authority for taps.** Each pixel of the hit map holds the index of the instance that owns it, or 0 for none. One lookup per tap answers *which object was touched*, with no rectangles, no overlap ambiguity, and no dependency on draw order.
   - Stored at **half resolution** (1024 × 768, ~0.75 MB as bytes in memory), read once at room load into a `Uint8Array`. Up to 255 instances per room.
   - **File format:** `hitmap.bin` is **run-length encoded**: little-endian Uint16 pairs `[value, count]` covering the pixels in row-major order (~18 KB for the M1 kitchen). A binary file is used instead of a PNG so that no browser colour management can alter the index values, and so the decoder is a pure function testable in Node (`src/core/hitmap.js`).
-  - **Overlaps are resolved at build time.** Masks should not overlap. Where they do, the build assigns contested pixels to the smaller object by default (a cup in front of a cabinet), unless the manifest sets an explicit `depth`. The validator reports every overlap.
-  - **Small objects are padded.** Their hit region is grown into free (unowned) pixels until it reaches the minimum tap size (§5), never into another object.
+  - **Overlaps are resolved at build time.** Masks may overlap (hand-made masks usually cover an object's whole shape). Contested pixels go to the object with the higher manifest `depth`; at equal depth (default 0) the smaller object wins (a cup in front of a cabinet). Every overlap is reported as a warning with its pixel count and winner. The cut-outs use the resolved regions too, so a back object's cut-out never includes the object in front.
+  - **Hit regions are padded.** Every region grows by 8 logical px into free (unowned) pixels, so thin parts such as chair legs are easier to hit, plus any per-object `hitPadding` from the manifest. Regions still smaller than the minimum tap size (80 logical px, §5) keep growing until they reach it, never into another object; a warning lists any that cannot. Tap points are computed before padding, so they stay inside the painted object.
 - **Tap points:** for each instance, the build computes a point guaranteed to be well inside its hit region (the point farthest from the region's edge, nearest its centroid on ties). Tests tap there, and *Look and identify* can anchor its highlight there.
 
 ### Separation of Concerns
@@ -171,21 +174,24 @@ Art can change without touching rules, and vocabulary can change without touchin
   "objects": [
     { "id": "refrigerator", "difficulty": 1 },
     { "id": "stove", "difficulty": 1 },
-    { "id": "cup", "difficulty": 2, "depth": 10 }
+    { "id": "cup", "difficulty": 2, "depth": 10, "hitPadding": 16 }
   ]
 }
 
-// public/assets/rooms/kitchen/layout.json (generated; M1 fields)
+// public/assets/rooms/kitchen/layout.json (generated)
 {
   "room": "kitchen",
   "size": [2048, 1536],
   "hitmap": { "width": 1024, "height": 768 },
+  "atlas": "objects.json",
   "instances": [
     { "index": 6, "name": "refrigerator", "objectId": "refrigerator",
-      "bounds": { "x": 116, "y": 256, "w": 408, "h": 928 }, "tap": [321, 721] }
+      "bounds": { "x": 116, "y": 256, "w": 408, "h": 928 },
+      "hitBounds": { "x": 108, "y": 248, "w": 424, "h": 944 },
+      "tap": [321, 721],
+      "cutout": { "frame": "refrigerator", "x": 115, "y": 255 } }
   ]
 }
-// M2 adds the atlas frame of each instance's cut-out.
 ```
 
 ### Proposed Gameplay Rules
@@ -207,7 +213,7 @@ These are proposed defaults, to be confirmed (see §11):
 3. **Review and fix** the painting: every manifest object must be present, recognizable, and not hidden. Use **inpainting** to add, replace, or fix individual objects rather than regenerating the whole room.
 4. **Mask** each interactive instance, using a segmentation tool (click the object to get its outline, then clean up) or a layer per object in an image editor. Export each mask as `masks/<objectId>.png` at the painting's size.
 5. **Build** the room with `npm run build:rooms`. It produces the background, atlas, hit map, and layout, then reports problems: missing or extra masks, overlaps, regions too small, empty masks.
-6. **Check** `debug-hits.png`, or run the game with `?debug=hits` to show colored hit regions over the room; fix masks and rebuild until correct.
+6. **Check** `reports/rooms/<room>-debug-hits.png`, or run the game with `?debug=hits` to show colored hit regions over the room; fix masks and rebuild until correct.
 7. **Generate audio** with the TTS script: it reads the lexicon, produces the word and prompt clips plus shared feedback clips, normalizes loudness, and writes MP3s. Generated files are committed, so the build never calls a TTS service.
 8. **Validate** with `npm run validate:content` (also run in CI, see §8).
 9. **Preview** in a desktop browser (and on the iPad from M5), run the interaction tests, and repeat until acceptable.
@@ -331,7 +337,7 @@ Triggered on **push** and **pull request**:
 6. `npm run build` (runs `build:rooms` first, then the Vite build)
 7. `npx playwright install --with-deps chromium` (plus `webkit` from M5)
 8. `npm run test:e2e` (starts `vite preview` and runs Playwright)
-9. On failure, upload the Playwright report, screenshots, traces, and `debug-hits.png` files as artifacts.
+9. On failure, upload the Playwright report, screenshots, traces, and `reports/` (room review images) as artifacts.
 
 Canvas screenshot comparisons are **not** a pass/fail gate at first, because rendering differs across platforms. Screenshots are captured for review; visual baselines can be added later for a few stable screens.
 
@@ -401,6 +407,8 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 
 ### M2: Room Pipeline and Real Kitchen
 
+> **Status: in progress.** The pipeline tooling (#24–#28) is done; art, masks, feedback, and the final kitchen (#22, #23, #29–#31) remain. Epic [#21](https://github.com/truffio/Words/issues/21).
+
 - **Choose the mask tool:** compare a segmentation tool with manual layers in an image editor for speed and edge quality; pick one.
 - **Choose the image generator** and write the art style guide and prompt template.
 - **Complete `build:rooms`:** object cut-outs and atlas, overlap resolution (size or `depth`), small-object padding, `debug-hits.png`, and clear error reports, with unit tests on synthetic masks.
@@ -468,6 +476,12 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 ---
 
 ## Revision Notes
+
+**Revision 6: M2 pipeline tooling**
+
+- `build:rooms` now produces object cut-outs in a multi-page atlas, resolves mask overlaps by `depth` then size, pads hit regions (base padding, per-object `hitPadding`, minimum tap size), and writes a review image to `reports/rooms/` (§4).
+- New `npm run validate:content`, sharing its checks with `build:rooms`, runs in CI after lint (§8).
+- Layout example updated with `hitBounds` and `cutout`.
 
 **Revision 5: updates from M1**
 

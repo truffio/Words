@@ -1,148 +1,255 @@
 /**
- * build:rooms (minimal, M1) — turns each room's painting and masks into the files the
- * game loads, in public/assets/rooms/<room>/:
+ * build:rooms — turns each room's painting and masks into the files the game loads, in
+ * public/assets/rooms/<room>/:
  *
- *   background.webp  the painting
- *   hitmap.bin       instance index per hit-map pixel (half resolution), run-length encoded
- *   layout.json      instances with objectId, bounds and tap point (logical coordinates)
+ *   background.webp   the painting
+ *   objects.json      Phaser multi-atlas of object cut-outs, with pages objects-<n>.webp
+ *   hitmap.bin        instance index per hit-map pixel (half resolution), run-length
+ *                     encoded, after overlap resolution and padding
+ *   layout.json       instances: objectId, bounds, hit bounds, tap point, cut-out frame
  *
- * Fails with a list of problems on invalid content: schema errors, unknown objects,
- * missing or extra masks, wrong mask size, empty masks, overlapping masks.
+ * and a review image, reports/rooms/<room>-debug-hits.png, showing every hit region.
+ *
+ * Runs the same checks as validate:content first and stops on any problem.
  *
  * Usage: node tools/build-rooms.js
  */
-import { readdir, readFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
-import { ContentError, validateLexicon, validateManifest } from '../src/core/content-validation.js';
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../src/core/display.js';
 import { encodeHitmap } from '../src/core/hitmap.js';
-import {
-  combineMasks,
-  downsample,
-  instanceBounds,
-  parseMaskName,
-  tapPoints,
-} from './lib/room-build.js';
+import { cutout, packShelves, regionOverlay } from './lib/room-build.js';
+import { analyseRoom, HITMAP_FACTOR, loadContent } from './lib/room-content.js';
+import { report } from './lib/report.js';
 
-const CONTENT_DIR = path.resolve('content');
 const OUTPUT_DIR = path.resolve('public/assets/rooms');
-const HITMAP_FACTOR = 2;
+const REPORT_DIR = path.resolve('reports/rooms');
 
-async function readJson(file) {
-  return JSON.parse(await readFile(file, 'utf8'));
+/** File size budgets per room (TECHNICAL.md §6). */
+const BUDGETS = {
+  background: 600 * 1024,
+  atlas: 1.5 * 1024 * 1024,
+  hitmap: 100 * 1024,
+};
+
+const PALETTE = [
+  [230, 25, 75],
+  [60, 180, 75],
+  [0, 130, 200],
+  [245, 130, 48],
+  [145, 30, 180],
+  [70, 200, 220],
+  [240, 50, 230],
+  [150, 190, 30],
+  [0, 128, 128],
+  [170, 110, 40],
+  [128, 0, 0],
+  [0, 0, 128],
+];
+const colourOf = (value) => PALETTE[(value - 1) % PALETTE.length];
+
+const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
+const escapeXml = (s) => s.replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0)};`);
+
+async function writeAtlas(room, analysis, rgba, outDir) {
+  const pieces = room.masks.map((mask, i) => ({
+    name: mask.name,
+    ...cutout(rgba, analysis.index, LOGICAL_WIDTH, LOGICAL_HEIGHT, i + 1, analysis.bounds[i]),
+  }));
+  const { pages, placements } = packShelves(pieces);
+
+  const textures = [];
+  let bytes = 0;
+  for (const [n, page] of pages.entries()) {
+    const image = `objects-${n}.webp`;
+    const onPage = pieces.filter((p) => placements.get(p.name).page === n);
+    const composites = await Promise.all(
+      onPage.map(async (piece) => {
+        const { x, y } = placements.get(piece.name);
+        const input = await sharp(Buffer.from(piece.data.buffer), {
+          raw: { width: piece.w, height: piece.h, channels: 4 },
+        })
+          .png()
+          .toBuffer();
+        return { input, left: x, top: y };
+      }),
+    );
+    const file = path.join(outDir, image);
+    await sharp({
+      create: {
+        width: page.width,
+        height: page.height,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite(composites)
+      .webp({ quality: 90, alphaQuality: 100 })
+      .toFile(file);
+    bytes += (await stat(file)).size;
+
+    textures.push({
+      image,
+      format: 'RGBA8888',
+      size: { w: page.width, h: page.height },
+      scale: 1,
+      frames: onPage.map((piece) => {
+        const { x, y } = placements.get(piece.name);
+        return {
+          filename: piece.name,
+          rotated: false,
+          trimmed: false,
+          sourceSize: { w: piece.w, h: piece.h },
+          spriteSourceSize: { x: 0, y: 0, w: piece.w, h: piece.h },
+          frame: { x, y, w: piece.w, h: piece.h },
+        };
+      }),
+    });
+  }
+
+  await writeFile(
+    path.join(outDir, 'objects.json'),
+    `${JSON.stringify({ textures, meta: { app: 'words build:rooms' } }, null, 2)}\n`,
+  );
+  return { pieces, pages, bytes };
 }
 
-/** Reads a mask as one byte per pixel: 1 inside the object, 0 outside. */
-async function readMask(file) {
-  const { data, info } = await sharp(file)
-    .flatten({ background: '#000000' })
-    .greyscale()
+async function writeDebugHits(room, analysis, layout) {
+  const { hitmap } = analysis;
+  const overlay = await sharp(
+    Buffer.from(regionOverlay(hitmap.pixels, hitmap.width, hitmap.height, colourOf).buffer),
+    {
+      raw: { width: hitmap.width, height: hitmap.height, channels: 4 },
+    },
+  )
+    .resize(LOGICAL_WIDTH, LOGICAL_HEIGHT, { kernel: 'nearest' })
+    .png()
+    .toBuffer();
+
+  const labels = layout.instances
+    .map(({ name, tap: [x, y] }) => {
+      const w = name.length * 19 + 24;
+      return (
+        `<circle cx="${x}" cy="${y}" r="9" fill="#ffffff" stroke="#000000" stroke-width="4"/>` +
+        `<rect x="${x - w / 2}" y="${y + 16}" width="${w}" height="44" rx="8" fill="#000000" opacity="0.7"/>` +
+        `<text x="${x}" y="${y + 48}" font-family="sans-serif" font-size="32" fill="#ffffff" text-anchor="middle">${escapeXml(name)}</text>`
+      );
+    })
+    .join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${LOGICAL_WIDTH}" height="${LOGICAL_HEIGHT}">${labels}</svg>`;
+
+  await mkdir(REPORT_DIR, { recursive: true });
+  const file = path.join(REPORT_DIR, `${room.id}-debug-hits.png`);
+  await sharp(room.paintingFile)
+    .composite([{ input: overlay }, { input: Buffer.from(svg) }])
+    .png()
+    .toFile(file);
+  return file;
+}
+
+async function buildRoom(room) {
+  const analysis = analyseRoom(room);
+  const warnings = [...analysis.warnings];
+  if (analysis.problems.length) return { problems: analysis.problems, warnings };
+
+  const outDir = path.join(OUTPUT_DIR, room.id);
+  await mkdir(outDir, { recursive: true });
+
+  const { data: rgba } = await sharp(room.paintingFile)
+    .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const pixels = new Uint8Array(info.width * info.height);
-  for (let p = 0; p < pixels.length; p++) pixels[p] = data[p * info.channels] >= 128 ? 1 : 0;
-  return { pixels, width: info.width, height: info.height };
-}
 
-async function buildRoom(roomId, lexicon) {
-  const roomDir = path.join(CONTENT_DIR, 'rooms', roomId);
-  const manifest = validateManifest(await readJson(path.join(roomDir, 'manifest.json')), lexicon);
-  const problems = [];
-  if (manifest.id !== roomId) {
-    problems.push(`manifest id "${manifest.id}" does not match its folder "${roomId}"`);
-  }
+  const backgroundFile = path.join(outDir, 'background.webp');
+  await sharp(room.paintingFile).webp({ quality: 85 }).toFile(backgroundFile);
+  const background = (await stat(backgroundFile)).size;
 
-  const paintingFile = path.join(roomDir, 'room.png');
-  const painting = await sharp(paintingFile).metadata();
-  if (painting.width !== LOGICAL_WIDTH || painting.height !== LOGICAL_HEIGHT) {
-    problems.push(
-      `room.png is ${painting.width} × ${painting.height}, expected ${LOGICAL_WIDTH} × ${LOGICAL_HEIGHT}`,
-    );
-  }
+  const atlas = await writeAtlas(
+    room,
+    analysis,
+    new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.length),
+    outDir,
+  );
 
-  const roomObjects = new Set(manifest.objects.map((o) => o.id));
-  const masked = new Set();
-  const masks = [];
-  const files = (await readdir(path.join(roomDir, 'masks')))
-    .filter((f) => f.endsWith('.png'))
-    .sort();
+  const hitmapBytes = encodeHitmap(analysis.hitmap.pixels);
+  await writeFile(path.join(outDir, 'hitmap.bin'), hitmapBytes);
 
-  for (const file of files) {
-    const parsed = parseMaskName(path.basename(file, '.png'));
-    if (!parsed) {
-      problems.push(`mask "${file}" is not named <objectId>.png or <objectId>@<n>.png`);
-      continue;
-    }
-    if (!roomObjects.has(parsed.objectId)) {
-      problems.push(`mask "${file}" is for "${parsed.objectId}", which is not in the manifest`);
-      continue;
-    }
-    const mask = await readMask(path.join(roomDir, 'masks', file));
-    if (mask.width !== LOGICAL_WIDTH || mask.height !== LOGICAL_HEIGHT) {
-      problems.push(
-        `mask "${file}" is ${mask.width} × ${mask.height}, expected the painting's size`,
-      );
-      continue;
-    }
-    masked.add(parsed.objectId);
-    masks.push({ ...parsed, pixels: mask.pixels });
-  }
-
-  for (const id of roomObjects) {
-    if (!masked.has(id)) problems.push(`object "${id}" has no mask`);
-  }
-
-  const { index, problems: maskProblems } = combineMasks(masks, LOGICAL_WIDTH, LOGICAL_HEIGHT);
-  problems.push(...maskProblems);
-  if (problems.length) throw new ContentError(`Room "${roomId}"`, problems);
-
-  const hitmap = downsample(index, LOGICAL_WIDTH, LOGICAL_HEIGHT, HITMAP_FACTOR);
-  const bounds = instanceBounds(index, LOGICAL_WIDTH, masks.length);
-  const taps = tapPoints(hitmap.pixels, hitmap.width, hitmap.height, masks.length);
+  const toLogical = (b) =>
+    b && {
+      x: b.x * HITMAP_FACTOR,
+      y: b.y * HITMAP_FACTOR,
+      w: b.w * HITMAP_FACTOR,
+      h: b.h * HITMAP_FACTOR,
+    };
 
   const layout = {
-    room: roomId,
+    room: room.id,
     size: [LOGICAL_WIDTH, LOGICAL_HEIGHT],
-    hitmap: { width: hitmap.width, height: hitmap.height },
-    instances: masks.map((mask, i) => {
-      if (!taps[i]) {
-        throw new ContentError(`Room "${roomId}"`, [
-          `mask "${mask.name}" is too small to survive the half-resolution hit map`,
-        ]);
-      }
+    hitmap: { width: analysis.hitmap.width, height: analysis.hitmap.height },
+    atlas: 'objects.json',
+    instances: room.masks.map((mask, i) => {
+      const piece = atlas.pieces[i];
       return {
         index: i + 1,
         name: mask.name,
         objectId: mask.objectId,
-        bounds: bounds[i],
-        tap: [(taps[i][0] + 0.5) * HITMAP_FACTOR, (taps[i][1] + 0.5) * HITMAP_FACTOR],
+        bounds: analysis.bounds[i],
+        hitBounds: toLogical(analysis.hitBounds[i]),
+        tap: [
+          (analysis.taps[i][0] + 0.5) * HITMAP_FACTOR,
+          (analysis.taps[i][1] + 0.5) * HITMAP_FACTOR,
+        ],
+        cutout: { frame: mask.name, x: piece.x, y: piece.y },
       };
     }),
   };
-
-  const outDir = path.join(OUTPUT_DIR, roomId);
-  await mkdir(outDir, { recursive: true });
-  await sharp(paintingFile).webp({ quality: 85 }).toFile(path.join(outDir, 'background.webp'));
-  await writeFile(path.join(outDir, 'hitmap.bin'), encodeHitmap(hitmap.pixels));
   await writeFile(path.join(outDir, 'layout.json'), `${JSON.stringify(layout, null, 2)}\n`);
 
-  return layout;
+  const debugFile = await writeDebugHits(room, analysis, layout);
+
+  const label = `room "${room.id}"`;
+  const sizes = { background, atlas: atlas.bytes, hitmap: hitmapBytes.byteLength };
+  for (const [key, size] of Object.entries(sizes)) {
+    if (size > BUDGETS[key]) {
+      warnings.push(`${label}: ${key} is ${kb(size)}, over its ${kb(BUDGETS[key])} budget`);
+    }
+  }
+
+  const summary =
+    `${room.id}: ${layout.instances.length} instances; background ${kb(background)}, ` +
+    `atlas ${kb(atlas.bytes)} on ${atlas.pages.length} page(s) ` +
+    `(${atlas.pages.map((p) => `${p.width}×${p.height}`).join(', ')}), hitmap ${kb(hitmapBytes.byteLength)}; ` +
+    `review: ${path.relative('.', debugFile)}`;
+  return { problems: [], warnings, summary };
 }
 
 async function main() {
-  const lexicon = validateLexicon(await readJson(path.join(CONTENT_DIR, 'lexicon.json')));
-  const entries = await readdir(path.join(CONTENT_DIR, 'rooms'), { withFileTypes: true });
-  const rooms = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  const content = await loadContent({
+    contentDir: path.resolve('content'),
+    publicDir: path.resolve('public'),
+  });
+  const problems = [...content.problems];
+  const warnings = [...content.warnings];
+  const summaries = [];
 
-  await rm(OUTPUT_DIR, { recursive: true, force: true });
-  for (const roomId of rooms) {
-    const layout = await buildRoom(roomId, lexicon);
-    console.log(`build:rooms: ${roomId} — ${layout.instances.length} instances`);
+  if (!problems.length) {
+    await rm(OUTPUT_DIR, { recursive: true, force: true });
+    await rm(REPORT_DIR, { recursive: true, force: true });
+    for (const room of content.rooms) {
+      const result = await buildRoom(room);
+      problems.push(...result.problems);
+      warnings.push(...result.warnings);
+      if (result.summary) summaries.push(result.summary);
+    }
   }
+
+  const ok = report('build:rooms', { problems, warnings });
+  for (const summary of summaries) console.log(`build:rooms: ${summary}`);
+  process.exit(ok ? 0 : 1);
 }
 
 main().catch((error) => {
-  console.error(error instanceof ContentError ? `build:rooms failed. ${error.message}` : error);
+  console.error(error);
   process.exit(1);
 });

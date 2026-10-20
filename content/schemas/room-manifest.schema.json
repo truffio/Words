@@ -35,6 +35,18 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 3
+          },
+          "depth": {
+            "description": "Where masks overlap, the higher depth wins. Default 0; at equal depth the smaller object wins.",
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "hitPadding": {
+            "description": "Extra growth of the hit region, in logical pixels, on top of the default padding.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
           }
         }
       }
