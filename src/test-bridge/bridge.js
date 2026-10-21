@@ -29,6 +29,8 @@ export function installTestBridge(app, game) {
       return {
         screen: app.shell.screen,
         room: app.roomId,
+        menuOpen: app.shell.menuOpen,
+        paused: app.session?.paused ?? false,
         activity: app.session?.activity ?? null,
         challengeNumber: challenge?.number ?? 0,
         challenge: challenge?.objectId ?? null,

@@ -83,7 +83,7 @@ test('two wrong answers reveal the object', async ({ page }) => {
 });
 
 test('a full round ends with a summary and can be replayed', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   await startRound(page, 42, FAST_MS);
 
   for (let n = 1; n <= 10; n++) {

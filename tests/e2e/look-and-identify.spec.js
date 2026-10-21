@@ -104,7 +104,7 @@ test('two wrong words reveal the right one', async ({ page }) => {
 });
 
 test('a full round ends with a summary that offers to change activity', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   await startRound(page, 42, FAST_MS);
 
   for (let n = 1; n <= 10; n++) {

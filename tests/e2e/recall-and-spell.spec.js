@@ -78,6 +78,8 @@ test('the target glows and a correct spelling scores, submitted with Enter', asy
 });
 
 test('an accepted variant is correct', async ({ page }) => {
+  // Plays up to a whole round to reach a word with a variant.
+  test.setTimeout(120_000);
   const variant = await startRoundWithVariant(page);
   const before = (await state(page)).score.correct;
   await page.getByTestId('spelling-input').fill(variant);

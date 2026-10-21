@@ -37,7 +37,23 @@
         </div>
       </aside>
 
-      <main id="game-container"></main>
+      <main id="game-container">
+        <button type="button" id="menu-button" aria-label="Menu" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </main>
+
+      <dialog id="menu" class="card" aria-labelledby="menu-title">
+        <h2 id="menu-title">Menu</h2>
+        <div class="menu-buttons">
+          <button type="button" id="menu-restart">Restart activity</button>
+          <button type="button" id="menu-change-activity" class="secondary">Change activity</button>
+          <button type="button" id="menu-change-room" class="secondary">Change room</button>
+          <button type="button" id="menu-close" class="secondary">Back to the game</button>
+        </div>
+      </dialog>
 
       <section id="rooms-screen" class="overlay" data-for="rooms">
         <div class="card">

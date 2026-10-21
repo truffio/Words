@@ -5,6 +5,9 @@
  *
  * Screens: 'rooms' | 'start' | 'loading' | 'playing' | 'summary' (set on
  * #app[data-screen]).
+ *
+ * The game menu (a modal dialog opened by the menu icon on the game window) is
+ * available on every screen where a room is open; it sits above the current screen.
  * The current activity is set on #app[data-activity]; elements with a `data-for`
  * activity are shown only during it.
  */
@@ -67,6 +70,8 @@ export function summaryMessage({ correct, attempted }, activity) {
  * @param {() => void} handlers.onChangeActivity
  * @param {(objectId: string) => void} handlers.onChoose a word button was pressed
  * @param {(text: string) => void} handlers.onSpell a spelling was submitted
+ * @param {() => { canRestart: boolean }} handlers.onOpenMenu the menu is opening
+ * @param {() => void} handlers.onCloseMenu the menu closed without a choice
  */
 export function createShell(
   root,
@@ -78,6 +83,8 @@ export function createShell(
     onChangeActivity,
     onChoose,
     onSpell,
+    onOpenMenu,
+    onCloseMenu,
   },
 ) {
   const $ = (id) => /** @type {HTMLElement} */ (root.querySelector(`#${id}`));
@@ -94,6 +101,32 @@ export function createShell(
   const roomList = $('room-list');
   const roomTitle = $('room-title');
   const loadingBar = $('loading-bar');
+  const menu = /** @type {HTMLDialogElement} */ ($('menu'));
+  const menuRestart = $('menu-restart');
+
+  // The menu runs its choice once it has closed, so the game behind never sees the
+  // menu half-open; closing without a choice (button or Escape) returns to the game.
+  /** @type {(() => void) | null} */
+  let menuChoice = null;
+  const choose = (action) => () => {
+    menuChoice = action;
+    menu.close();
+  };
+  $('menu-button').addEventListener('click', () => {
+    const { canRestart } = onOpenMenu();
+    menuRestart.hidden = !canRestart;
+    menuChoice = null;
+    menu.showModal();
+  });
+  menuRestart.addEventListener('click', choose(onPlayAgain));
+  $('menu-change-activity').addEventListener('click', choose(onChangeActivity));
+  $('menu-change-room').addEventListener('click', choose(onChangeRoom));
+  $('menu-close').addEventListener('click', choose(null));
+  menu.addEventListener('close', () => {
+    const action = menuChoice;
+    menuChoice = null;
+    (action ?? onCloseMenu)();
+  });
 
   roomList.addEventListener('click', (event) => {
     const button = /** @type {HTMLElement} */ (event.target).closest('button');
@@ -170,6 +203,10 @@ export function createShell(
 
     get screen() {
       return root.dataset.screen;
+    },
+
+    get menuOpen() {
+      return menu.open;
     },
 
     /** @param {Activity} activity */

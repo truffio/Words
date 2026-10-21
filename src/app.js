@@ -13,6 +13,9 @@ import { ACTIVITY_PROMPTS, createShell } from './shell/shell.js';
 /** How long after a room opens the next room is prefetched, to leave the network free. */
 const PREFETCH_DELAY_MS = 2000;
 
+/** How long after the menu closes a challenge that had ended moves on. */
+const RESUME_DELAY_MS = 600;
+
 /** How long feedback stays on screen before the next challenge. */
 const NEXT_DELAY_MS = { correct: 1200, reveal: 2400 };
 
@@ -49,6 +52,8 @@ export function createApp({ game, root }) {
   let unsubscribe = [];
   let timerId = 0;
   let nextId = 0;
+  /** True when the menu opened while a challenge was waiting to move on. */
+  let nextPending = false;
 
   const shell = createShell(root, {
     onChooseRoom: (roomId) => openRoom(roomId),
@@ -64,6 +69,24 @@ export function createApp({ game, root }) {
     },
     onChoose: (objectId) => answer(objectId),
     onSpell: (text) => answer(text),
+    onOpenMenu: () => {
+      // Pause the round: stop the clock and hold back the next challenge.
+      session?.pause();
+      if (nextId) {
+        clearTimeout(nextId);
+        nextId = 0;
+        nextPending = true;
+      }
+      return { canRestart: !!session };
+    },
+    onCloseMenu: () => {
+      session?.resume();
+      if (nextPending) {
+        nextPending = false;
+        scheduleNext(RESUME_DELAY_MS);
+      }
+      if (shell.screen === 'playing' && activity === 'recallAndSpell') shell.focusSpelling();
+    },
   });
 
   /**
@@ -77,6 +100,8 @@ export function createApp({ game, root }) {
       shell.setLoadingProgress(0);
       shell.showScreen('loading');
       room = getRoom(roomId);
+      // A new room starts with no activity to restart.
+      session = null;
       roomView = null;
       roomView = await loadRoom(game, roomId, (p) => shell.setLoadingProgress(p));
       const debug = new URLSearchParams(location.search).get('debug');
@@ -116,11 +141,21 @@ export function createApp({ game, root }) {
     if (session?.awaitingAnswer) session.answer(value);
   }
 
+  /** @param {number} ms delay before the next challenge (or the end of the round) */
+  function scheduleNext(ms) {
+    nextId = setTimeout(() => {
+      nextId = 0;
+      session.next();
+    }, ms);
+  }
+
   function stopRound() {
     unsubscribe.forEach((off) => off());
     unsubscribe = [];
     clearInterval(timerId);
     clearTimeout(nextId);
+    nextId = 0;
+    nextPending = false;
     roomView?.scene.detachSession();
   }
 
@@ -149,8 +184,7 @@ export function createApp({ game, root }) {
         if (activity === 'lookAndIdentify') shell.markChoice(result);
         if (activity === 'recallAndSpell')
           shell.markSpelling(result.outcome, label(result.objectId));
-        if (result.done)
-          nextId = setTimeout(() => session.next(), nextDelay ?? NEXT_DELAY_MS[result.outcome]);
+        if (result.done) scheduleNext(nextDelay ?? NEXT_DELAY_MS[result.outcome]);
       }),
       session.on('roundEnded', ({ score }) => {
         clearInterval(timerId);

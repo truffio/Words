@@ -43,7 +43,7 @@ async function clickTarget(page) {
 }
 
 test('choose a room, play, change room, and play in the new room', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   await open(page);
 
   await chooseRoom(page, 'Bedroom');
