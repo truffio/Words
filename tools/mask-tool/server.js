@@ -144,13 +144,22 @@ function createApi(contentDir) {
 
     // Served here rather than as static files: Vite's dev server does not serve file
     // names containing "@" (e.g. chair@1.png).
+    // A painting copied into the room folder by hand may not be the logical size; the
+    // tool's clicks and masks assume it is, so it is normalised (and saved) first.
     async painting(roomId) {
       await manifestOf(roomId);
+      const file = path.join(roomsDir, roomId, 'room.png');
+      let image;
       try {
-        return await readFile(path.join(roomsDir, roomId, 'room.png'));
+        image = await readFile(file);
       } catch {
         throw new HttpError(404, `Room "${roomId}" has no painting yet.`);
       }
+      const { width, height } = await sharp(image).metadata();
+      if (width === LOGICAL_WIDTH && height === LOGICAL_HEIGHT) return image;
+      const { png } = await normalisePainting(image);
+      await writeFile(file, png);
+      return png;
     },
 
     /** Replaces the room's painting with any image, optionally deleting its masks. */
