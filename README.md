@@ -40,7 +40,7 @@ Add `?debug=hits` to the URL (dev server only) to see each object's clickable ar
 | `npm run test:watch` | Run the unit tests in watch mode. |
 | `npm run test:e2e` | Build the test version, serve it, and run the end-to-end tests (Playwright, Chromium). |
 
-CI runs lint, content validation, unit tests, build, and end-to-end tests on every push and pull request (`.github/workflows/ci.yml`).
+CI runs lint, content validation, unit tests and the build on pull requests and on pushes to `main` and `dev` (`.github/workflows/ci.yml`). The end-to-end tests are not run in CI: run `npm run test:e2e` locally before pushing.
 
 ## Deployment
 
