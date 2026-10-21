@@ -7,12 +7,17 @@ async function canvasBox(page) {
   return page.locator('canvas').boundingBox();
 }
 
-test('the start screen shows over the game canvas', async ({ page }) => {
+test('the start screen shows the rooms over the game canvas', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Words' })).toBeVisible();
-  for (const name of ['Listen and find', 'Look and identify', 'Recall and spell']) {
-    await expect(page.getByRole('button', { name })).toBeVisible();
+  for (const name of ['Bathroom', 'Bedroom', 'Kitchen']) {
+    const room = page.getByRole('button', { name });
+    await expect(room).toBeVisible();
+    // Its thumbnail has loaded.
+    await expect
+      .poll(() => room.locator('img').evaluate((img) => img.complete && img.naturalWidth))
+      .toBeGreaterThan(0);
   }
 });
 

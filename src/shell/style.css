@@ -40,8 +40,66 @@ body {
 }
 
 #game-container {
+  position: relative;
   min-width: 0;
   min-height: 0;
+}
+
+/* Game menu: an icon in the corner of the game window whenever a room is open. */
+#menu-button {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 1;
+  display: none;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0;
+  padding: 0;
+  border: 3px solid var(--ink);
+  border-radius: 1rem;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgb(31 42 68 / 35%);
+}
+
+#app[data-screen='start'] #menu-button,
+#app[data-screen='playing'] #menu-button,
+#app[data-screen='summary'] #menu-button {
+  display: grid;
+}
+
+#menu-button svg {
+  width: 2rem;
+  height: 2rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+#menu {
+  border: none;
+  color: var(--ink);
+}
+
+#menu::backdrop {
+  background: rgb(31 42 68 / 70%);
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.menu-buttons button {
+  margin: 0;
+}
+
+.menu-buttons button[hidden] {
+  display: none;
 }
 
 /* HUD */
@@ -253,6 +311,7 @@ body {
   background: rgb(31 42 68 / 70%);
 }
 
+#app[data-screen='rooms'] .overlay[data-for='rooms'],
 #app[data-screen='start'] .overlay[data-for='start'],
 #app[data-screen='loading'] .overlay[data-for='loading'],
 #app[data-screen='summary'] .overlay[data-for='summary'] {
@@ -285,6 +344,52 @@ button {
   font-size: 1.6rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* Room selection: one large button per room, with its picture above its name. */
+.rooms {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  max-width: min(90vw, 64rem);
+  margin-top: 1rem;
+}
+
+.room {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 13rem;
+  margin: 0;
+  padding: 0.6rem 0.6rem 0.8rem;
+  border-radius: 1.5rem;
+  font-size: 1.4rem;
+}
+
+.room img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 1rem;
+  background: var(--paper);
+}
+
+/* Loading screen */
+.progress {
+  height: 1rem;
+  margin-top: 1rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--choice-bg);
+}
+
+#loading-bar {
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s;
 }
 
 /* Start screen: one large button per activity, with an icon above its name. */

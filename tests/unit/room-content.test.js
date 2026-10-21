@@ -125,6 +125,57 @@ describe('loadContent', () => {
   });
 });
 
+describe('loadContent: draft rooms', () => {
+  it("reports a draft room's problems as warnings and leaves it out of the build", async () => {
+    await setupRoom({
+      lexicon: { stove: entry('stove') },
+      manifest: { id: 'test', title: 'Test', draft: true, objects: [{ id: 'stove' }] },
+      masks: [],
+    });
+    const { rooms, drafts, draftIds, problems, warnings } = await load();
+    expect(problems).toEqual([]);
+    expect(warnings).toContain('room "test": object "stove" has no mask (draft)');
+    expect(rooms).toEqual([]);
+    expect(drafts).toEqual([]);
+    expect(draftIds).toEqual(['test']);
+  });
+
+  it('accepts the starter manifest of a new room', async () => {
+    await setupRoom({
+      lexicon: { stove: entry('stove') },
+      manifest: { id: 'test', title: 'Test', draft: true, objects: [] },
+      masks: [],
+    });
+    const { problems, warnings, draftIds } = await load();
+    expect(problems).toEqual([]);
+    expect(warnings).toContain('room "test": /objects must NOT have fewer than 1 items (draft)');
+    expect(draftIds).toEqual(['test']);
+  });
+
+  it('returns a complete draft separately from the rooms to build', async () => {
+    await setupRoom({
+      lexicon: { stove: entry('stove') },
+      manifest: { id: 'test', title: 'Test', draft: true, objects: [{ id: 'stove' }] },
+      masks: [['stove.png', [[0, 0, 100, 100]]]],
+    });
+    const { rooms, drafts, problems, warnings } = await load();
+    expect(problems).toEqual([]);
+    expect(warnings).toEqual([]);
+    expect(rooms).toEqual([]);
+    expect(drafts.map((r) => r.id)).toEqual(['test']);
+  });
+
+  it('still reports the problems of a room that is not a draft', async () => {
+    await setupRoom({
+      lexicon: { stove: entry('stove') },
+      manifest: { id: 'test', title: 'Test', draft: false, objects: [{ id: 'stove' }] },
+      masks: [],
+    });
+    const { problems } = await load();
+    expect(problems).toContain('room "test": object "stove" has no mask');
+  });
+});
+
 describe('analyseRoom', () => {
   it('resolves overlaps, pads regions, and warns about both', async () => {
     await setupRoom({

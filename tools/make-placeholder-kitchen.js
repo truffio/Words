@@ -6,43 +6,15 @@
  * the object's whole shape, as a hand-made mask would be, so masks may overlap (the right
  * chair overlaps the stove); build:rooms resolves overlaps, here in favour of the chair.
  *
- * Usage: node tools/make-placeholder-kitchen.js
+ * Usage: node tools/make-placeholder-kitchen.js [output folder]
  */
-import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
-import sharp from 'sharp';
 import { LOGICAL_HEIGHT as H, LOGICAL_WIDTH as W } from '../src/core/display.js';
+import { circle, line, rect, writePlaceholderRoom } from './lib/placeholder.js';
 
-const ROOM_DIR = path.resolve('content/rooms/kitchen');
-
-/**
- * Builds an SVG element. In mask mode every visible fill/stroke takes the mask colour.
- * @param {string} tag
- * @param {Record<string, string | number>} attrs
- * @param {string | null} mask mask colour, or null when painting
- */
-function el(tag, attrs, mask) {
-  const a = { ...attrs };
-  if (mask) {
-    if (a.fill !== 'none') a.fill = mask;
-    if (a.stroke && a.stroke !== 'none') a.stroke = mask;
-    delete a.opacity;
-  }
-  const text = Object.entries(a)
-    .map(([k, v]) => `${k}="${v}"`)
-    .join(' ');
-  return `<${tag} ${text}/>`;
-}
-
-const rect = (x, y, w, h, fill, extra = {}) => [
-  'rect',
-  { x, y, width: w, height: h, fill, ...extra },
-];
-const circle = (cx, cy, r, fill, extra = {}) => ['circle', { cx, cy, r, fill, ...extra }];
-const line = (x1, y1, x2, y2, stroke, width) => [
-  'line',
-  { x1, y1, x2, y2, stroke, 'stroke-width': width, 'stroke-linecap': 'round', fill: 'none' },
-];
+// Writes to content/rooms/kitchen, which now holds the real kitchen painting, unless
+// another folder is given.
+const ROOM_DIR = path.resolve(process.argv[2] ?? 'content/rooms/kitchen');
 
 /** Decorative background: wall, floor, counter. Never interactive. */
 const scenery = [
@@ -154,30 +126,8 @@ const objects = [
   },
 ];
 
-const svg = (body) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}</svg>`;
-
-const draw = (shapes, mask = null) => shapes.map(([tag, attrs]) => el(tag, attrs, mask)).join('');
-
 async function main() {
-  const masksDir = path.join(ROOM_DIR, 'masks');
-  await rm(masksDir, { recursive: true, force: true });
-  await mkdir(masksDir, { recursive: true });
-
-  const painting = svg(draw(scenery) + objects.map((o) => draw(o.shapes)).join(''));
-  await sharp(Buffer.from(painting)).png().toFile(path.join(ROOM_DIR, 'room.png'));
-
-  for (const object of objects) {
-    // The object in white on black, without anti-aliasing.
-    const body =
-      `<rect width="${W}" height="${H}" fill="#000000"/>` +
-      `<g shape-rendering="crispEdges">${draw(object.shapes, '#ffffff')}</g>`;
-    await sharp(Buffer.from(svg(body)))
-      .greyscale()
-      .png({ palette: true, colours: 2 })
-      .toFile(path.join(masksDir, `${object.name}.png`));
-  }
-
+  await writePlaceholderRoom(ROOM_DIR, scenery, objects);
   console.log(`Wrote room.png and ${objects.length} masks to ${path.relative('.', ROOM_DIR)}`);
 }
 

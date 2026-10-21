@@ -6,7 +6,7 @@
     <title>Words</title>
   </head>
   <body>
-    <div id="app" data-screen="start">
+    <div id="app" data-screen="rooms">
       <aside id="hud">
         <p id="prompt" data-testid="prompt" aria-live="polite"></p>
         <p id="feedback" data-testid="feedback" aria-live="polite"></p>
@@ -37,11 +37,35 @@
         </div>
       </aside>
 
-      <main id="game-container"></main>
+      <main id="game-container">
+        <button type="button" id="menu-button" aria-label="Menu" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </main>
+
+      <dialog id="menu" class="card" aria-labelledby="menu-title">
+        <h2 id="menu-title">Menu</h2>
+        <div class="menu-buttons">
+          <button type="button" id="menu-restart">Restart activity</button>
+          <button type="button" id="menu-change-activity" class="secondary">Change activity</button>
+          <button type="button" id="menu-change-room" class="secondary">Change room</button>
+          <button type="button" id="menu-close" class="secondary">Back to the game</button>
+        </div>
+      </dialog>
+
+      <section id="rooms-screen" class="overlay" data-for="rooms">
+        <div class="card">
+          <h1>Words</h1>
+          <p>Choose a room!</p>
+          <div id="room-list" class="rooms"></div>
+        </div>
+      </section>
 
       <section id="start-screen" class="overlay" data-for="start">
         <div class="card">
-          <h1>Words</h1>
+          <h2 id="room-title" data-testid="room-title"></h2>
           <p>What do you want to play?</p>
           <div class="activities">
             <button type="button" class="activity" data-activity="listenAndFind">
@@ -66,11 +90,17 @@
               <span>Recall and spell</span>
             </button>
           </div>
+          <button type="button" class="change-room-button secondary">Change room</button>
         </div>
       </section>
 
       <section id="loading-screen" class="overlay" data-for="loading">
-        <div class="card"><p>Loading…</p></div>
+        <div class="card">
+          <p>Loading…</p>
+          <div class="progress">
+            <div id="loading-bar" data-testid="loading-bar"></div>
+          </div>
+        </div>
       </section>
 
       <section id="summary-screen" class="overlay" data-for="summary">
@@ -83,6 +113,7 @@
             <button type="button" id="change-activity-button" class="secondary">
               Change activity
             </button>
+            <button type="button" class="change-room-button secondary">Change room</button>
           </div>
         </div>
       </section>

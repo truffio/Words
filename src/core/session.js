@@ -9,7 +9,8 @@ import { createEmitter } from './events.js';
  * - `roundEnded`       { score }
  *
  * `score` is { correct, attempted, elapsedMs }, where `attempted` counts challenges
- * that have ended (answered correctly or revealed).
+ * that have ended (answered correctly or revealed). Time spent paused (the game menu
+ * is open) does not count.
  */
 
 /**
@@ -24,11 +25,13 @@ export function createSession({ roomId, exercise, now = Date.now }) {
   let attempted = 0;
   let startedAt = 0;
   let endedAt = 0;
+  let pausedAt = 0;
+  let pausedMs = 0;
   let roundOver = false;
 
   function score() {
-    const end = endedAt || now();
-    return { correct, attempted, elapsedMs: startedAt ? end - startedAt : 0 };
+    const end = endedAt || pausedAt || now();
+    return { correct, attempted, elapsedMs: startedAt ? end - startedAt - pausedMs : 0 };
   }
 
   function startNext() {
@@ -59,6 +62,22 @@ export function createSession({ roomId, exercise, now = Date.now }) {
 
     get roundOver() {
       return roundOver;
+    },
+
+    get paused() {
+      return pausedAt !== 0;
+    },
+
+    /** Stops the clock, e.g. while the game menu is open. */
+    pause() {
+      if (startedAt && !roundOver && !pausedAt) pausedAt = now();
+    },
+
+    /** Restarts the clock after a pause. */
+    resume() {
+      if (!pausedAt) return;
+      pausedMs += now() - pausedAt;
+      pausedAt = 0;
     },
 
     /** Starts the round with its first challenge. */
