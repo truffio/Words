@@ -4,6 +4,7 @@ An English vocabulary game for children, played in the browser. The child explor
 
 - Game concept: [WORDS.md](WORDS.md)
 - Technical design and implementation plan: [TECHNICAL.md](TECHNICAL.md)
+- Art: [style guide](docs/art/style-guide.md) (cartoon, kawaii, isometric) and [making masks](docs/art/masks.md)
 - Milestone reports: [M0: Project Setup](docs/milestones/M0.md), [M1: First Playable Room](docs/milestones/M1.md)
 
 ## Getting started
@@ -25,6 +26,7 @@ Add `?debug=hits` to the URL (dev server only) to see each object's clickable ar
 | `npm run dev` | Build the rooms, then start the Vite dev server on port 8080. |
 | `npm run build` | Build the rooms, then the static game into `dist/`. |
 | `npm run build:rooms` | Check the content, then turn each room's painting and masks into `public/assets/rooms/<room>/` (background, cut-out atlas, hit map, layout) and a review image in `reports/rooms/`. |
+| `npm run masks` | Open the mask tool (dev server): click objects on a room painting to make their masks. See [docs/art/masks.md](docs/art/masks.md). |
 | `npm run validate:content` | Check the lexicon, manifests, and masks without building; lists all problems and warnings. |
 | `npm run build:test` | Build the test version (with the test bridge) into `dist-test/`. |
 | `npm run make:placeholder-kitchen` | Redraw the placeholder kitchen painting and masks. |
@@ -56,6 +58,8 @@ src/
   main.js           Entry point
 tools/            Build and content scripts (build:rooms, validate:content, placeholder kitchen)
   lib/              Shared loading/checking (room-content.js) and pure algorithms (room-build.js)
+  mask-tool/        Browser mask tool (Segment Anything + magic wand), dev server only
+docs/art/         Art style guide and masking guide
 reports/          Generated review images (git-ignored)
 tests/
   unit/             Vitest tests

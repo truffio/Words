@@ -15,6 +15,7 @@
     "build:test": "npm run build:rooms && vite build --mode test --outDir dist-test",
     "build:rooms": "node tools/build-rooms.js",
     "validate:content": "node tools/validate-content.js",
+    "masks": "vite --open /tools/mask-tool/",
     "make:placeholder-kitchen": "node tools/make-placeholder-kitchen.js",
     "preview": "vite preview",
     "lint": "eslint . && prettier --check .",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@huggingface/transformers": "4.3.1",
     "@playwright/test": "1.64.1",
     "ajv": "8.20.0",
     "eslint": "10.13.0",
