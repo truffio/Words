@@ -89,8 +89,9 @@ test('opening the menu pauses the round; closing it returns to the same challeng
 });
 
 test('the next challenge waits while the menu is open', async ({ page }) => {
-  // Long enough for the menu to open before the next challenge is due, even on CI.
-  await openKitchen(page, 3000);
+  // Long enough for the menu to open before the next challenge is due, even on a slow
+  // CI runner (3 s was not always enough).
+  await openKitchen(page, 8000);
   await startActivity(page, 'Listen and find');
 
   await clickTarget(page);
@@ -99,7 +100,7 @@ test('the next challenge waits while the menu is open', async ({ page }) => {
   expect(await state(page)).toMatchObject({ challengeNumber: 1, menuOpen: true });
 
   // Well past the feedback time, the round is still on the ended challenge.
-  await page.waitForTimeout(4000);
+  await page.waitForTimeout(9000);
   expect(await state(page)).toMatchObject({ challengeNumber: 1, awaitingAnswer: false });
 
   await menu(page).getByRole('button', { name: 'Back to the game' }).click();
