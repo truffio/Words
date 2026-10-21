@@ -5,7 +5,7 @@ An English vocabulary game for children, played in the browser. The child explor
 - Game concept: [WORDS.md](WORDS.md)
 - Technical design and implementation plan: [TECHNICAL.md](TECHNICAL.md)
 - Art: [style guide](docs/art/style-guide.md) (cartoon, kawaii, isometric) and [making masks](docs/art/masks.md)
-- Milestone reports: [M0: Project Setup](docs/milestones/M0.md), [M1: First Playable Room](docs/milestones/M1.md)
+- Milestone reports: [M0: Project Setup](docs/milestones/M0.md), [M1: First Playable Room](docs/milestones/M1.md), [M4: Look and Identify, Recall and Spell](docs/milestones/M4.md)
 
 ## Getting started
 

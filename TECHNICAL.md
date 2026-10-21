@@ -432,6 +432,8 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 
 ### M4: Look and Identify, Recall and Spell
 
+> **Status: done, except spoken words, which wait for M3 audio.** See the [M4 completion report](docs/milestones/M4.md).
+
 - **Look and identify:** object highlight, multiple-choice word buttons (DOM), distractor selection.
 - **Recall and spell:** object highlight, spelling input (DOM input typed with the physical keyboard), answer normalization, reveal with the correct spelling.
 - Activity selection in the shell; end-to-end tests for both activities.
@@ -474,13 +476,17 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 | E | TTS provider and **voice/accent** (e.g. Canadian or US English, to match the immersion program) | Chosen from sample clips | M3 |
 | F | "Hear again" button to replay the prompt | Yes, in the HUD | M3 |
 | G | Highlight technique: runtime glow filter vs. build-time outline frames | **Settled (M2):** build-time glow halos, tinted at runtime (the runtime filter was too slow to set up, §5); check the look on the iPad in M5 | M2 |
-| H | How the child moves between activities: free choice vs. suggested progression per room | Free choice from the room screen | M4 |
+| H | How the child moves between activities: free choice vs. suggested progression per room | **Settled (M4):** free choice of the three activities on the start screen; the round summary offers *Play again* and *Change activity* | M4 |
 | I | Spelling input on the iPad: on-screen keyboard vs. custom in-game keyboard | Start with the on-screen keyboard; reconsider after testing with the child | M5 |
 | J | Final list of the 12 rooms and their vocabulary | Kitchen first; others defined during M6–M7 | M6 |
 
 ---
 
 ## Revision Notes
+
+**Revision 11: M4 activities**
+
+- Look and identify and Recall and spell are playable; decision H settled (free choice).
 
 **Revision 10: deployment**
 

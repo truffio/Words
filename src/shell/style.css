@@ -5,6 +5,8 @@
   --try-again: #c76a12;
   --reveal: #a77b00;
   --hud-bg: #ffffff;
+  --choice-bg: #e8eefc;
+  --wrong-bg: #f3e3d3;
 }
 
 html,
@@ -78,6 +80,107 @@ body {
   color: var(--reveal);
 }
 
+/* Activity-specific controls: shown only during their own activity. */
+#hud [data-for] {
+  display: none;
+}
+
+#app[data-activity='lookAndIdentify'] #hud [data-for='lookAndIdentify'],
+#app[data-activity='recallAndSpell'] #hud [data-for='recallAndSpell'] {
+  display: flex;
+}
+
+/* Look and identify: word buttons */
+.choices {
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.choice {
+  margin: 0;
+  padding: 0.55em 0.8em;
+  border: 4px solid transparent;
+  border-radius: 1rem;
+  background: var(--choice-bg);
+  color: var(--ink);
+  font-size: clamp(1.3rem, 2.4vw, 2rem);
+}
+
+.choice:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.choice:disabled {
+  cursor: default;
+}
+
+.choice[data-state='correct'] {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.choice[data-state='answer'] {
+  border-color: var(--reveal);
+  background: #fff3c4;
+}
+
+.choice[data-state='wrong'] {
+  background: var(--wrong-bg);
+  color: var(--try-again);
+  text-decoration: line-through;
+}
+
+/* Recall and spell: spelling input */
+.spelling {
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+#spelling-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.4em 0.6em;
+  border: 4px solid var(--ink);
+  border-radius: 1rem;
+  color: var(--ink);
+  font: inherit;
+  font-size: clamp(1.5rem, 2.8vw, 2.4rem);
+  font-weight: 700;
+}
+
+#spelling-input[data-outcome='correct'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#spelling-input[data-outcome='tryAgain'] {
+  border-color: var(--try-again);
+}
+
+#spelling-input[data-outcome='reveal'] {
+  border-color: var(--reveal);
+  background: #fff3c4;
+}
+
+#check-button {
+  margin: 0;
+}
+
+#check-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .stats {
   display: flex;
   gap: 1.5rem;
@@ -122,6 +225,23 @@ body {
     grid-row: 1 / span 2;
     margin-top: 0;
   }
+
+  /* Word buttons and spelling input form a row under the prompt. */
+  #hud [data-for] {
+    grid-column: 1 / -1;
+  }
+
+  .choices {
+    flex-flow: row wrap;
+  }
+
+  .choice {
+    flex: 1 1 0;
+  }
+
+  .spelling {
+    flex-direction: row;
+  }
 }
 
 /* Overlays: shown only for their own screen. */
@@ -165,6 +285,49 @@ button {
   font-size: 1.6rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* Start screen: one large button per activity, with an icon above its name. */
+.activities {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.activity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  width: 10.5em;
+  margin: 0;
+  padding: 1rem;
+  border-radius: 1.5rem;
+  font-size: 1.3rem;
+}
+
+.activity svg {
+  width: 4rem;
+  height: 4rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.summary-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+
+button.secondary {
+  background: var(--choice-bg);
+  color: var(--ink);
 }
 
 button:focus-visible {

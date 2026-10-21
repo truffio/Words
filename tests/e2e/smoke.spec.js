@@ -11,7 +11,9 @@ test('the start screen shows over the game canvas', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Words' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
+  for (const name of ['Listen and find', 'Look and identify', 'Recall and spell']) {
+    await expect(page.getByRole('button', { name })).toBeVisible();
+  }
 });
 
 test('the game canvas keeps its 4:3 shape and rescales with the window', async ({ page }) => {
