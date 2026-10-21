@@ -1,5 +1,5 @@
 import { Scene, WEBGL } from 'phaser';
-import { decodeHitmap, instanceAt } from '../../core/hitmap.js';
+import { decodeHitmap, instancesAt } from '../../core/hitmap.js';
 import { regionCanvas } from '../regions.js';
 
 const COLORS = {
@@ -23,7 +23,9 @@ const MAX_RING_RADIUS = 160;
  * Displays any room from its generated files and turns clicks/taps into object
  * instances. Feedback is driven by the session's events; the scene holds no rules.
  *
- * In Listen and find, a tap is the answer and feedback shows on the tapped object. In
+ * In Listen and find, a tap is the answer and feedback shows on the tapped object.
+ * Objects may share pixels (a stereo system and its speakers): a tap answers with every
+ * object there, so it is right if any of them is the target. In
  * Look and identify and Recall and spell, the target object glows (blue) while the
  * child answers in the shell, taps are ignored, and feedback shows on the target.
  *
@@ -47,6 +49,7 @@ export class RoomScene extends Scene {
       pixels: decodeHitmap(this.cache.binary.get(`${roomId}:hitmap`), width * height),
       width,
       height,
+      sets: this.layout.hitSets,
     };
 
     this.add.image(0, 0, `${roomId}:background`).setOrigin(0, 0);
@@ -102,11 +105,12 @@ export class RoomScene extends Scene {
 
   /** @param {number} x logical x  @param {number} y logical y */
   handlePointer(x, y) {
-    const index = instanceAt(this.hitmap, x, y);
+    const indices = instancesAt(this.hitmap, x, y);
     // Walls, floor, and decorative details are not answers.
-    if (!index || !this.answersByTap || !this.session?.awaitingAnswer) return;
-    this.lastTapped = this.layout.instances[index - 1];
-    this.session.answer(this.lastTapped.objectId);
+    if (!indices.length || !this.answersByTap || !this.session?.awaitingAnswer) return;
+    /** Every instance tapped, the most specific first. */
+    this.lastTapped = indices.map((i) => this.layout.instances[i - 1]);
+    this.session.answer([...new Set(this.lastTapped.map((i) => i.objectId))]);
   }
 
   /** @param {import('../../core/exercise.js').AnswerResult} result */
@@ -120,7 +124,11 @@ export class RoomScene extends Scene {
       return;
     }
     this.clearFeedback();
-    const instances = kind === 'reveal' ? this.instancesOf(result.objectId) : [this.lastTapped];
+    // The tapped instance of the object the answer counted as: the target when right,
+    // the most specific object tapped when wrong.
+    const tapped =
+      this.lastTapped.find((i) => i.objectId === result.answeredId) ?? this.lastTapped[0];
+    const instances = kind === 'reveal' ? this.instancesOf(result.objectId) : [tapped];
     this.highlight(instances, kind);
   }
 

@@ -68,6 +68,35 @@ describe('createLookAndIdentify: choices', () => {
     }
   });
 
+  it('never offers a whole or a part of the target as a distractor', () => {
+    const objects = [
+      ...OBJECTS,
+      { id: 'stereo-system', label: 'stereo system', accepted: ['stereo system', 'stereo'] },
+      { id: 'speaker', label: 'speaker', accepted: ['speaker'] },
+    ];
+    const parts = [['stereo-system', 'speaker']];
+    for (let seed = 0; seed < 50; seed++) {
+      const ex = createLookAndIdentify({
+        objects,
+        parts,
+        rng: createRng(seed),
+        objectIds: ['speaker', 'stereo-system'],
+      });
+      for (const c of playAll(ex)) {
+        expect(c.choices.includes('speaker') && c.choices.includes('stereo-system')).toBe(false);
+      }
+    }
+    // Another target can still have them both as distractors.
+    const ex = createLookAndIdentify({
+      objects,
+      parts,
+      rng: createRng(3),
+      objectIds: ['stove'],
+      choiceCount: objects.length,
+    });
+    expect(ex.next().choices).toEqual(expect.arrayContaining(['speaker', 'stereo-system']));
+  });
+
   it('shuffles the position of the answer', () => {
     const positions = new Set(playAll(exercise()).map((c) => c.choices.indexOf(c.objectId)));
     expect(positions.size).toBeGreaterThan(1);

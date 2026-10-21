@@ -49,32 +49,48 @@ describe('combineMasks', () => {
     expect(problems).toEqual(['mask "b" is empty']);
   });
 
-  it('gives overlapping pixels to the smaller mask by default', () => {
-    const cabinet = mask('cabinet', ['####', '####']);
-    const cup = mask('cup', ['.#..', '....']);
-    const { index, overlaps, problems } = combineMasks([cabinet, cup], 4, 2);
+  it('shares overlapping pixels at equal depth, the smallest instance first', () => {
+    const stereo = mask('stereo', ['####', '####']);
+    const speaker = mask('speaker', ['.#..', '....']);
+    const { index, sets, areas, overlaps, problems } = combineMasks([stereo, speaker], 4, 2);
     expect(problems).toEqual([]);
+    // Cells 1 and 2 are the instances alone; cell 3 is both, the speaker first.
+    expect(sets).toEqual([[], [1], [2], [2, 1]]);
+    expect([...index]).toEqual([1, 3, 1, 1, 1, 1, 1, 1]);
+    expect(areas).toEqual([8, 1]);
+    expect(overlaps).toEqual([{ a: 'speaker', b: 'stereo', pixels: 1, front: null }]);
+  });
+
+  it('gives overlapping pixels to the higher depth alone', () => {
+    const table = mask('table', ['####', '####']);
+    const cup = { ...mask('cup', ['.#..', '....']), depth: 1 };
+    const { index, sets, overlaps } = combineMasks([table, cup], 4, 2);
+    expect(sets).toEqual([[], [1], [2]]);
     expect([...index]).toEqual([1, 2, 1, 1, 1, 1, 1, 1]);
-    expect(overlaps).toEqual([{ a: 'cabinet', b: 'cup', pixels: 1, winner: 'cup' }]);
+    expect(overlaps).toEqual([{ a: 'cup', b: 'table', pixels: 1, front: 'cup' }]);
   });
 
-  it('lets a higher depth win over a smaller mask', () => {
-    const table = { ...mask('table', ['####', '####']), depth: 1 };
-    const cup = mask('cup', ['.#..', '....']);
-    const { index, overlaps } = combineMasks([table, cup], 4, 2);
-    expect([...index]).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
-    expect(overlaps[0].winner).toBe('table');
-  });
-
-  it('resolves a three-way overlap by size', () => {
+  it('shares a three-way overlap among all three masks', () => {
     const big = mask('big', ['#####']);
     const medium = mask('medium', ['.###.']);
     const small = mask('small', ['..#..']);
-    const { index, overlaps } = combineMasks([big, medium, small], 5, 1);
-    expect([...index]).toEqual([1, 2, 3, 2, 1]);
+    const { index, sets, overlaps } = combineMasks([big, medium, small], 5, 1);
+    expect([...index].map((cell) => sets[cell])).toEqual([[1], [2, 1], [3, 2, 1], [2, 1], [1]]);
     const byPair = Object.fromEntries(overlaps.map((o) => [`${o.a}|${o.b}`, o]));
-    expect(byPair['big|medium']).toMatchObject({ pixels: 3, winner: 'medium' });
-    expect(byPair['medium|small']).toMatchObject({ pixels: 1, winner: 'small' });
+    expect(byPair['big|medium']).toMatchObject({ pixels: 3, front: null });
+    expect(byPair['medium|small']).toMatchObject({ pixels: 1, front: null });
+    expect(byPair['big|small']).toMatchObject({ pixels: 1, front: null });
+  });
+
+  it('does not count masks that are both hidden behind a third', () => {
+    const wall = mask('wall', ['###']);
+    const shelf = mask('shelf', ['.##']);
+    const clock = { ...mask('clock', ['..#']), depth: 1 };
+    const { index, sets, overlaps } = combineMasks([wall, shelf, clock], 3, 1);
+    expect([...index].map((cell) => sets[cell])).toEqual([[1], [2, 1], [3]]);
+    const byPair = Object.fromEntries(overlaps.map((o) => [`${o.a}|${o.b}`, o]));
+    expect(byPair['shelf|wall'].pixels).toBe(1);
+    expect(byPair['clock|wall']).toMatchObject({ pixels: 1, front: 'clock' });
   });
 });
 
@@ -112,10 +128,25 @@ describe('padRegions', () => {
   });
 
   it('reports regions that cannot reach the minimum size', () => {
-    const { index } = combineMasks([mask('a', ['####']), mask('b', ['.##.'])], 4, 1);
-    // b is surrounded by a, so it cannot grow.
-    const { tooSmall } = padRegions(index, 4, 1, 2, { minSize: 3 });
+    const { index, sets } = combineMasks([mask('a', ['####']), mask('b', ['.##.'])], 4, 1);
+    // b is inside a, so it cannot grow.
+    const { tooSmall } = padRegions(index, 4, 1, 2, { minSize: 3, sets });
     expect(tooSmall).toEqual([0, 1]);
+  });
+
+  it('grows a whole around its shared parts, keeping the shared pixels', () => {
+    const { index, sets } = combineMasks(
+      [mask('stereo', ['.....', '.###.', '.....']), mask('speaker', ['.....', '.#...', '.....'])],
+      5,
+      3,
+    );
+    const padded = padRegions(index, 5, 3, 2, { basePad: 1, sets });
+    const shared = sets.findIndex((set) => set.length === 2);
+    // The speaker grows into the free pixels next to it first (it is smaller), and the
+    // shared pixel stays shared.
+    expect(padded.index[1 * 5 + 1]).toBe(shared);
+    expect(padded.index[1 * 5 + 0]).toBe(2);
+    expect(padded.index[1 * 5 + 4]).toBe(1);
   });
 
   it('thickens thin parts and applies extra padding per region', () => {
@@ -159,6 +190,31 @@ describe('cutout', () => {
     expect(alpha(1, 3)).toBe(Math.round((6 * 255) / 9));
     expect(alpha(0, 3)).toBe(Math.round((3 * 255) / 9));
     expect(alpha(0, 0)).toBe(Math.round((1 * 255) / 9));
+  });
+});
+
+describe('cutout and glowHalo with shared pixels', () => {
+  const { index, sets } = combineMasks(
+    [mask('stereo', ['.....', '.###.', '.....']), mask('speaker', ['.....', '.#...', '.....'])],
+    5,
+    3,
+  );
+  const white = new Uint8Array(5 * 3 * 4).fill(255);
+
+  it("cuts the whole's full mask, its shared parts included", () => {
+    const piece = cutout(white, index, 5, 3, 1, { x: 1, y: 1, w: 3, h: 1 }, sets);
+    const alpha = (x, y) => piece.data[((y - piece.y) * piece.w + (x - piece.x)) * 4 + 3];
+    // The shared pixel (the speaker) has the same feathered alpha as the stereo's
+    // other end: it is part of the stereo's cut-out.
+    expect(alpha(1, 1)).toBe(alpha(3, 1));
+    expect(alpha(1, 1)).toBeGreaterThan(0);
+  });
+
+  it("glows over the whole's full mask", () => {
+    const halo = glowHalo(index, 5, 3, 1, { x: 1, y: 1, w: 3, h: 1 }, 2, sets);
+    const alpha = (x, y) => halo.data[((y - halo.y) * halo.w + (x - halo.x)) * 4 + 3];
+    expect(alpha(1, 1)).toBe(255);
+    expect(alpha(3, 1)).toBe(255);
   });
 });
 
@@ -244,6 +300,17 @@ describe('regionOverlay', () => {
     expect(px(1, 1)).toEqual([10, 20, 30, 255]);
     expect(px(2, 2)).toEqual([10, 20, 30, 120]);
   });
+
+  it('stripes shared pixels in the colours of every instance there', () => {
+    const index = new Uint16Array(20).fill(3);
+    const sets = [[], [1], [2], [2, 1]];
+    const colours = { 1: [255, 0, 0], 2: [0, 0, 255] };
+    const data = regionOverlay(index, 20, 1, (v) => colours[v], sets);
+    const rgb = (x) => [...data.slice(x * 4, x * 4 + 3)];
+    expect(rgb(0)).toEqual([0, 0, 255]);
+    expect(rgb(6)).toEqual([255, 0, 0]);
+    expect(rgb(12)).toEqual([0, 0, 255]);
+  });
 });
 
 describe('downsample', () => {
@@ -258,6 +325,18 @@ describe('downsample', () => {
 });
 
 describe('instanceBounds', () => {
+  it('includes shared pixels in the box of every instance there', () => {
+    const { index, sets } = combineMasks(
+      [mask('stereo', ['####.']), mask('speaker', ['...##'])],
+      5,
+      1,
+    );
+    expect(instanceBounds(index, 5, 2, sets)).toEqual([
+      { x: 0, y: 0, w: 4, h: 1 },
+      { x: 3, y: 0, w: 2, h: 1 },
+    ]);
+  });
+
   it('returns each instance bounding box', () => {
     const { index } = combineMasks(
       [mask('a', ['.##..', '.#...', '.....']), mask('b', ['.....', '.....', '...##'])],
@@ -307,6 +386,31 @@ describe('tapPoints', () => {
     const [a, b] = tapPoints(index, 3, 3, 2);
     expect(b).toEqual([1, 1]);
     expect(index[a[1] * 3 + a[0]]).toBe(1);
+  });
+
+  it('puts each tap point where its instance is the most specific', () => {
+    const { index, sets } = combineMasks(
+      [
+        mask('stereo', ['.........', '.#######.', '.#######.', '.#######.', '.........']),
+        mask('speaker', ['.........', '.###.....', '.###.....', '.###.....', '.........']),
+      ],
+      9,
+      5,
+    );
+    const [stereo, speaker] = tapPoints(index, 9, 5, 2, sets);
+    // The stereo's point is on its own part, not on the speaker it shares.
+    expect(sets[index[stereo[1] * 9 + stereo[0]]]).toEqual([1]);
+    expect(sets[index[speaker[1] * 9 + speaker[0]]][0]).toBe(2);
+  });
+
+  it('falls back to the whole region of an instance made only of parts', () => {
+    const { index, sets } = combineMasks(
+      [mask('pair', ['####']), mask('left', ['##..']), mask('right', ['..##'])],
+      4,
+      1,
+    );
+    const [pair] = tapPoints(index, 4, 1, 3, sets);
+    expect(sets[index[pair[0]]]).toContain(1);
   });
 
   it('returns null for instances with no pixels', () => {

@@ -1,6 +1,16 @@
 /**
  * Pure algorithms behind build:rooms, kept free of file I/O so they can be unit-tested
  * on small synthetic masks.
+ *
+ * Hit regions may share pixels (a whole and its parts: a stereo system and its
+ * speakers), so maps do not store one instance per pixel but a *cell*: an index into a
+ * table of instance sets. Cell 0 is empty and cell i (1 ≤ i ≤ count) is instance i
+ * alone, so a map without shared pixels reads exactly like a plain instance index;
+ * shared pixels use the cells after that. Each set lists its instances from the
+ * smallest to the largest, so its first instance is the most specific.
+ *
+ * Functions that read maps take the set table as `sets`; without it, cell i is
+ * instance i alone.
  */
 
 const MASK_NAME = /^([a-z]+(?:-[a-z]+)*)(?:@([1-9][0-9]*))?$/;
@@ -26,19 +36,57 @@ export function parseMaskName(name) {
  * @typedef {object} Overlap
  * @property {string} a
  * @property {string} b
- * @property {number} pixels contested pixel count
- * @property {string} winner the mask that owns those pixels
+ * @property {number} pixels overlapping pixel count
+ * @property {string | null} front with different depths, the mask in front, which
+ *   alone keeps those pixels; null when both share them
  */
 
+/** Largest cell value a hit map can store (cells are encoded as Uint16). */
+const MAX_CELLS = 0xffff;
+
 /**
- * Combines masks into one index map: each pixel holds the 1-based index of the mask
- * that owns it, or 0. Where masks overlap, the higher `depth` wins; at equal depth the
- * smaller mask wins (a cup in front of a cabinet). Empty masks are problems; overlaps
- * are reported but resolved.
+ * The instances of each cell: `sets[cell]`, or the cell alone when there is no table.
+ * @param {number[][] | undefined} sets
+ * @returns {(cell: number) => number[]}
+ */
+function membersOf(sets) {
+  if (sets) return (cell) => sets[cell] ?? [];
+  const single = [];
+  return (cell) => (cell ? (single[cell] ??= [cell]) : []);
+}
+
+/** Number of cells a map can use: the table's length, or its largest value + 1. */
+function cellCountOf(index, sets) {
+  if (sets) return sets.length;
+  let max = 0;
+  for (let p = 0; p < index.length; p++) if (index[p] > max) max = index[p];
+  return max + 1;
+}
+
+/**
+ * A lookup of the cells that contain one instance: `has[cell]` is 1 or 0.
+ * @param {Uint8Array | Uint16Array} index cell map
+ * @param {number[][] | undefined} sets
+ * @param {number} value 1-based instance index
+ */
+function cellsWith(index, sets, value) {
+  const has = new Uint8Array(Math.max(cellCountOf(index, sets), value + 1));
+  if (sets) sets.forEach((set, cell) => (has[cell] = set.includes(value) ? 1 : 0));
+  else has[value] = 1;
+  return has;
+}
+
+/**
+ * Combines masks into one cell map. Where masks overlap, those with the highest
+ * `depth` keep the pixel: one object in front of another (a cup on a table) is
+ * marked with a higher depth. At equal depth, overlapping masks share the pixel (a
+ * stereo system and its speakers), and a tap there finds them all. Empty masks are
+ * problems; overlaps are reported.
  * @param {Mask[]} masks
  * @param {number} width
  * @param {number} height
- * @returns {{ index: Uint8Array, overlaps: Overlap[], problems: string[] }}
+ * @returns {{ index: Uint16Array, sets: number[][], areas: number[], overlaps: Overlap[],
+ *   problems: string[] }} `areas` is each mask's pixel count
  */
 export function combineMasks(masks, width, height) {
   const problems = [];
@@ -55,39 +103,61 @@ export function combineMasks(masks, width, height) {
     if (areas[i] === 0) problems.push(`mask "${mask.name}" is empty`);
   });
 
-  // Paint from lowest to highest priority, so winners are painted last.
+  // Visit masks from the smallest, so every set lists its instances in that order.
   const order = masks
     .map((mask, i) => i)
-    .sort(
-      (i, j) =>
-        (masks[i].depth ?? 0) - (masks[j].depth ?? 0) ||
-        areas[j] - areas[i] ||
-        masks[j].name.localeCompare(masks[i].name),
-    );
+    .sort((i, j) => areas[i] - areas[j] || masks[i].name.localeCompare(masks[j].name));
+  const depth = (i) => masks[i].depth ?? 0;
 
-  const index = new Uint8Array(width * height);
+  /** @type {number[][]} */
+  const sets = [[], ...masks.map((mask, i) => [i + 1])];
+  const cellOf = new Map(sets.map((set, cell) => [set.join(','), cell]));
+  const index = new Uint16Array(width * height);
   /** @type {Map<string, Overlap>} */
   const overlaps = new Map();
+  const covering = [];
 
-  for (const i of order) {
-    const mask = masks[i];
-    for (let p = 0; p < index.length; p++) {
-      if (!mask.pixels[p]) continue;
-      const previous = index[p];
-      if (previous) {
-        const other = masks[previous - 1].name;
-        const [a, b] = [other, mask.name].sort();
+  for (let p = 0; p < index.length; p++) {
+    covering.length = 0;
+    let top = -Infinity;
+    for (const i of order) {
+      if (!masks[i].pixels[p]) continue;
+      covering.push(i);
+      top = Math.max(top, depth(i));
+    }
+    if (!covering.length) continue;
+
+    for (let m = 0; m < covering.length; m++) {
+      for (let n = m + 1; n < covering.length; n++) {
+        const [i, j] = [covering[m], covering[n]];
+        // Two masks both hidden behind a third do not meet here.
+        if (depth(i) !== top && depth(j) !== top) continue;
+        const [a, b] = [masks[i].name, masks[j].name].sort();
         const key = `${a}|${b}`;
-        const entry = overlaps.get(key) ?? { a, b, pixels: 0, winner: mask.name };
+        const front = depth(i) === depth(j) ? null : masks[depth(i) > depth(j) ? i : j].name;
+        const entry = overlaps.get(key) ?? { a, b, pixels: 0, front };
         entry.pixels++;
-        entry.winner = mask.name;
         overlaps.set(key, entry);
       }
-      index[p] = i + 1;
     }
+
+    const key = covering
+      .filter((i) => depth(i) === top)
+      .map((i) => i + 1)
+      .join(',');
+    let cell = cellOf.get(key);
+    if (cell === undefined) {
+      cell = sets.length;
+      sets.push(key.split(',').map(Number));
+      cellOf.set(key, cell);
+    }
+    index[p] = cell;
   }
 
-  return { index, overlaps: [...overlaps.values()], problems };
+  if (sets.length > MAX_CELLS) {
+    problems.push(`masks overlap in too many combinations (${sets.length}, at most ${MAX_CELLS})`);
+  }
+  return { index, sets, areas, overlaps: [...overlaps.values()], problems };
 }
 
 /**
@@ -100,7 +170,7 @@ export function combineMasks(masks, width, height) {
 export function downsample(index, width, height, factor) {
   const w = Math.floor(width / factor);
   const h = Math.floor(height / factor);
-  const out = new Uint8Array(w * h);
+  const out = new index.constructor(w * h);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       out[y * w + x] = index[y * factor * width + x * factor];
@@ -111,26 +181,29 @@ export function downsample(index, width, height, factor) {
 
 /**
  * Bounding box of each instance, in the map's pixel coordinates.
- * @param {Uint8Array} index
+ * @param {Uint8Array | Uint16Array} index cell map
  * @param {number} width
  * @param {number} count number of instances
+ * @param {number[][]} [sets] instances of each cell
  * @returns {({ x: number, y: number, w: number, h: number } | null)[]} per instance (0-based)
  */
-export function instanceBounds(index, width, count) {
+export function instanceBounds(index, width, count, sets) {
+  const members = membersOf(sets);
   const box = Array.from({ length: count }, () => null);
   for (let p = 0; p < index.length; p++) {
-    const v = index[p];
-    if (!v) continue;
+    if (!index[p]) continue;
     const x = p % width;
     const y = (p - x) / width;
-    const b = box[v - 1];
-    if (!b) {
-      box[v - 1] = { minX: x, minY: y, maxX: x, maxY: y };
-    } else {
-      if (x < b.minX) b.minX = x;
-      if (x > b.maxX) b.maxX = x;
-      if (y < b.minY) b.minY = y;
-      if (y > b.maxY) b.maxY = y;
+    for (const v of members(index[p])) {
+      const b = box[v - 1];
+      if (!b) {
+        box[v - 1] = { minX: x, minY: y, maxX: x, maxY: y };
+      } else {
+        if (x < b.minX) b.minX = x;
+        if (x > b.maxX) b.maxX = x;
+        if (y < b.minY) b.minY = y;
+        if (y > b.maxY) b.maxY = y;
+      }
     }
   }
   return box.map((b) =>
@@ -139,16 +212,43 @@ export function instanceBounds(index, width, count) {
 }
 
 /**
- * For each instance, the pixel farthest (4-neighbour distance) from the edge of its
- * region, preferring the one nearest the region's centroid: a point safely inside the
- * object, used by tests and highlights.
- * @param {Uint8Array} index
+ * For each instance, a point safely inside the object, used by tests and highlights: the
+ * pixel farthest from the edge of the area where the instance is the most specific one
+ * (first in its cell's set), so a tap there names this instance. An instance that is
+ * never the most specific (a whole made only of its parts) uses its whole region.
+ * @param {Uint8Array | Uint16Array} index cell map
  * @param {number} width
  * @param {number} height
  * @param {number} count number of instances
+ * @param {number[][]} [sets] instances of each cell
  * @returns {([number, number] | null)[]} per instance (0-based), in pixel coordinates
  */
-export function tapPoints(index, width, height, count) {
+export function tapPoints(index, width, height, count, sets) {
+  const members = membersOf(sets);
+  const primary = new Uint16Array(index.length);
+  for (let p = 0; p < index.length; p++) primary[p] = members(index[p])[0] ?? 0;
+  const points = deepestPoints(primary, width, height, count);
+
+  points.forEach((point, i) => {
+    if (point) return;
+    const has = cellsWith(index, sets, i + 1);
+    const region = index.map((cell) => has[cell]);
+    if (region.some(Boolean)) points[i] = deepestPoints(region, width, height, 1)[0];
+  });
+  return points;
+}
+
+/**
+ * For each label of a label map (one label per pixel, 0 for none), the pixel farthest
+ * (4-neighbour distance) from the edge of its region, preferring the one nearest the
+ * region's centroid.
+ * @param {Uint8Array | Uint16Array} index
+ * @param {number} width
+ * @param {number} height
+ * @param {number} count number of labels
+ * @returns {([number, number] | null)[]} per label (0-based), in pixel coordinates
+ */
+function deepestPoints(index, width, height, count) {
   const dist = new Int32Array(index.length);
   const queue = new Int32Array(index.length);
   let head = 0;
@@ -219,28 +319,31 @@ export function tapPoints(index, width, height, count) {
 }
 
 /**
- * Grows hit regions into free (unowned) pixels, never into another region:
+ * Grows hit regions into free (empty) pixels, never into another region:
  * 1. every region grows by `basePad + extraPad[i]` pixels, so thin parts are easier to hit;
  * 2. regions whose bounding box is still smaller than `minSize` keep growing until they
  *    reach it or run out of free space.
  * Growth is 8-neighbour, one pixel per step; when regions compete for a pixel, the
- * smaller region gets it.
- * @param {Uint8Array} index
+ * smaller region gets it. A grown pixel belongs to that region alone (cell i).
+ * @param {Uint8Array | Uint16Array} index cell map
  * @param {number} width
  * @param {number} height
  * @param {number} count number of instances
- * @param {{ basePad?: number, minSize?: number, extraPad?: number[] }} [options] in pixels
- * @returns {{ index: Uint8Array, tooSmall: number[] }} padded map and 0-based instances
- *   still below the minimum size
+ * @param {{ basePad?: number, minSize?: number, extraPad?: number[], sets?: number[][] }}
+ *   [options] sizes in pixels; `sets` is the instances of each cell
+ * @returns {{ index: Uint8Array | Uint16Array, tooSmall: number[] }} padded map and
+ *   0-based instances still below the minimum size
  */
 export function padRegions(index, width, height, count, options = {}) {
-  const { basePad = 0, minSize = 0, extraPad = [] } = options;
+  const { basePad = 0, minSize = 0, extraPad = [], sets } = options;
   const out = index.slice();
-  const boxes = instanceBounds(out, width, count).map((b) =>
+  const boxes = instanceBounds(out, width, count, sets).map((b) =>
     b ? { minX: b.x, minY: b.y, maxX: b.x + b.w - 1, maxY: b.y + b.h - 1 } : null,
   );
+  const members = membersOf(sets);
   const areas = new Array(count).fill(0);
-  for (let p = 0; p < out.length; p++) if (out[p]) areas[out[p] - 1]++;
+  for (let p = 0; p < out.length; p++) for (const v of members(out[p])) areas[v - 1]++;
+  const inRegion = Array.from({ length: count }, (_, r) => cellsWith(index, sets, r + 1));
 
   /** Grows each listed region by one pixel; returns the regions that gained pixels. */
   function grow(regions) {
@@ -249,6 +352,7 @@ export function padRegions(index, width, height, count, options = {}) {
     for (const r of [...regions].sort((a, b) => areas[a] - areas[b])) {
       const box = boxes[r];
       const value = r + 1;
+      const has = inRegion[r];
       const x0 = Math.max(0, box.minX - 1);
       const x1 = Math.min(width - 1, box.maxX + 1);
       const y0 = Math.max(0, box.minY - 1);
@@ -267,7 +371,7 @@ export function padRegions(index, width, height, count, options = {}) {
                 ny >= 0 &&
                 nx < width &&
                 ny < height &&
-                snapshot[ny * width + nx] === value;
+                has[snapshot[ny * width + nx]] === 1;
             }
           }
           if (!touches) continue;
@@ -307,14 +411,16 @@ export function padRegions(index, width, height, count, options = {}) {
  * index map, softened by a 3 × 3 box blur (about 1 px of feathering), trimmed to the
  * instance's bounds plus one pixel for the feather.
  * @param {Uint8Array} rgba painting pixels, 4 bytes per pixel
- * @param {Uint8Array} index full-resolution index map
+ * @param {Uint8Array | Uint16Array} index full-resolution cell map
  * @param {number} width
  * @param {number} height
  * @param {number} value 1-based instance index
  * @param {{ x: number, y: number, w: number, h: number }} bounds
+ * @param {number[][]} [sets] instances of each cell
  * @returns {{ data: Uint8Array, x: number, y: number, w: number, h: number }}
  */
-export function cutout(rgba, index, width, height, value, bounds) {
+export function cutout(rgba, index, width, height, value, bounds, sets) {
+  const has = cellsWith(index, sets, value);
   const x0 = Math.max(0, bounds.x - 1);
   const y0 = Math.max(0, bounds.y - 1);
   const x1 = Math.min(width, bounds.x + bounds.w + 1);
@@ -324,7 +430,7 @@ export function cutout(rgba, index, width, height, value, bounds) {
   const data = new Uint8Array(w * h * 4);
 
   const inside = (x, y) =>
-    x >= 0 && y >= 0 && x < width && y < height && index[y * width + x] === value;
+    x >= 0 && y >= 0 && x < width && y < height && has[index[y * width + x]] === 1;
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -350,15 +456,17 @@ export function cutout(rgba, index, width, height, value, bounds) {
  * opaque over the instance, fading to clear `radius` pixels away from its edge
  * (approximate Euclidean distance from a two-pass chamfer transform). The game tints it
  * and draws it behind the instance's cut-out.
- * @param {Uint8Array} index full-resolution index map
+ * @param {Uint8Array | Uint16Array} index full-resolution cell map
  * @param {number} width
  * @param {number} height
  * @param {number} value 1-based instance index
  * @param {{ x: number, y: number, w: number, h: number }} bounds
  * @param {number} radius in pixels
+ * @param {number[][]} [sets] instances of each cell
  * @returns {{ data: Uint8Array, x: number, y: number, w: number, h: number }}
  */
-export function glowHalo(index, width, height, value, bounds, radius) {
+export function glowHalo(index, width, height, value, bounds, radius, sets) {
+  const has = cellsWith(index, sets, value);
   const x0 = Math.max(0, bounds.x - radius);
   const y0 = Math.max(0, bounds.y - radius);
   const x1 = Math.min(width, bounds.x + bounds.w + radius);
@@ -370,7 +478,7 @@ export function glowHalo(index, width, height, value, bounds, radius) {
   const dist = new Float32Array(w * h).fill(Infinity);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      if (index[(y0 + y) * width + x0 + x] === value) dist[y * w + x] = 0;
+      if (has[index[(y0 + y) * width + x0 + x]] === 1) dist[y * w + x] = 0;
     }
   }
   const relax = (p, q, cost) => {
@@ -454,19 +562,26 @@ export function packShelves(items, { pageSize = 2048, padding = 2 } = {}) {
   return { pages, placements };
 }
 
+/** Width of the stripes that show shared pixels in the review overlay (map pixels). */
+const STRIPE = 6;
+
 /**
- * Colours every region of an index map for review: a translucent fill per instance with
- * an opaque edge. Returns RGBA pixels the size of the map.
- * @param {Uint8Array} index
+ * Colours every region of a cell map for review: a translucent fill per instance with
+ * an opaque edge. Shared pixels are striped in the colours of every instance there.
+ * Returns RGBA pixels the size of the map.
+ * @param {Uint8Array | Uint16Array} index cell map
  * @param {number} width
  * @param {number} height
- * @param {(value: number) => [number, number, number]} colourOf
+ * @param {(value: number) => [number, number, number]} colourOf colour of an instance
+ * @param {number[][]} [sets] instances of each cell
  */
-export function regionOverlay(index, width, height, colourOf) {
+export function regionOverlay(index, width, height, colourOf, sets) {
+  const members = membersOf(sets);
   const data = new Uint8Array(width * height * 4);
   for (let p = 0; p < index.length; p++) {
     const v = index[p];
     if (!v) continue;
+    const set = members(v);
     const x = p % width;
     const y = (p - x) / width;
     const edge =
@@ -478,7 +593,7 @@ export function regionOverlay(index, width, height, colourOf) {
       index[p + 1] !== v ||
       index[p - width] !== v ||
       index[p + width] !== v;
-    const [r, g, b] = colourOf(v);
+    const [r, g, b] = colourOf(set[Math.floor((x + y) / STRIPE) % set.length]);
     data.set([r, g, b, edge ? 255 : 120], p * 4);
   }
   return data;

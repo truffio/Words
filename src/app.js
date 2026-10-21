@@ -19,11 +19,12 @@ const RESUME_DELAY_MS = 600;
 /** How long feedback stays on screen before the next challenge. */
 const NEXT_DELAY_MS = { correct: 1200, reveal: 2400 };
 
-/** Exercise factories by activity. */
+/** Exercise factories by activity; `layout` is the room's built layout.json. */
 const EXERCISES = {
   listenAndFind: (room, rng) =>
     createListenAndFind({ objectIds: room.objects.map((o) => o.id), rng }),
-  lookAndIdentify: (room, rng) => createLookAndIdentify({ objects: room.objects, rng }),
+  lookAndIdentify: (room, rng, layout) =>
+    createLookAndIdentify({ objects: room.objects, parts: layout.parts, rng }),
   recallAndSpell: (room, rng) => createRecallAndSpell({ objects: room.objects, rng }),
 };
 
@@ -162,7 +163,8 @@ export function createApp({ game, root }) {
   function startRound() {
     stopRound();
     const rng = createRng(seed ?? randomSeed());
-    session = createSession({ roomId: room.id, exercise: EXERCISES[activity](room, rng) });
+    const exercise = EXERCISES[activity](room, rng, roomView.layout);
+    session = createSession({ roomId: room.id, exercise });
     const label = (id) => room.byId.get(id).label;
 
     unsubscribe = [

@@ -25,6 +25,13 @@ describe('createListenAndFind: selection', () => {
     expect(ex.current).toBeNull();
   });
 
+  it('asks for every object once by default', () => {
+    const ex = exercise();
+    expect(ex.roundLength).toBe(OBJECTS.length);
+    expect(new Set(playAll(ex))).toEqual(new Set(OBJECTS));
+    expect(ex.next()).toBeNull();
+  });
+
   it('uses every object once before repeating any', () => {
     const targets = playAll(exercise({ roundLength: 8 }));
     expect(new Set(targets.slice(0, 4))).toEqual(new Set(OBJECTS));
@@ -67,7 +74,33 @@ describe('createListenAndFind: answers', () => {
       outcome: 'correct',
       objectId,
       answeredId: objectId,
+      answeredIds: [objectId],
       done: true,
+    });
+  });
+
+  it('accepts a tap on shared pixels when the target is among the objects there', () => {
+    const ex = exercise();
+    const { objectId } = ex.next();
+    const part = OBJECTS.find((o) => o !== objectId);
+    // The tap found a part first (the most specific), then the target, its whole.
+    expect(ex.answer([part, objectId])).toEqual({
+      outcome: 'correct',
+      objectId,
+      answeredId: objectId,
+      answeredIds: [part, objectId],
+      done: true,
+    });
+  });
+
+  it('counts a tap on shared pixels as the most specific object when it is wrong', () => {
+    const ex = exercise();
+    const { objectId } = ex.next();
+    const [part, whole] = OBJECTS.filter((o) => o !== objectId);
+    expect(ex.answer([part, whole])).toMatchObject({
+      outcome: 'tryAgain',
+      answeredId: part,
+      answeredIds: [part, whole],
     });
   });
 
