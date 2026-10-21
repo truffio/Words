@@ -4,6 +4,10 @@
  * same rules.
  *
  * Problems make the content invalid; warnings are reported but do not fail.
+ *
+ * A room whose manifest sets `"draft": true` is unfinished: its problems are reported
+ * as warnings, and it is returned in `drafts` rather than `rooms`, so it is never built
+ * and never blocks dev, CI, or deployment.
  */
 import { access, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -47,6 +51,15 @@ async function readJson(file, problems, label) {
   } catch (error) {
     problems.push(`${label}: cannot read ${path.basename(file)} (${error.message})`);
     return null;
+  }
+}
+
+/** Whether a room's manifest marks it as a draft (false if the manifest is unreadable). */
+async function isDraft(roomDir) {
+  try {
+    return JSON.parse(await readFile(path.join(roomDir, 'manifest.json'), 'utf8')).draft === true;
+  } catch {
+    return false;
   }
 }
 
@@ -173,9 +186,9 @@ async function loadRoom(roomId, roomDir, lexicon, problems, warnings) {
 
 /**
  * Loads the lexicon and every room, checking everything that can be checked without
- * building. Rooms with problems are left out of `rooms`.
+ * building. Rooms with problems are left out of `rooms` (and drafts out of `drafts`).
  * @param {{ contentDir: string, publicDir: string }} dirs
- * @returns {Promise<{ lexicon: object, rooms: RoomSource[], problems: string[], warnings: string[] }>}
+ * @returns {Promise<{ lexicon: object, rooms: RoomSource[], drafts: RoomSource[], draftIds: string[], problems: string[], warnings: string[] }>}
  */
 export async function loadContent({ contentDir, publicDir }) {
   const problems = [];
@@ -202,19 +215,31 @@ export async function loadContent({ contentDir, publicDir }) {
     .sort();
 
   const rooms = [];
+  const drafts = [];
+  const draftIds = [];
   for (const roomId of roomIds) {
-    const room = await loadRoom(roomId, path.join(roomsDir, roomId), lexicon, problems, warnings);
-    if (room) rooms.push(room);
+    const roomDir = path.join(roomsDir, roomId);
+    const roomProblems = [];
+    const room = await loadRoom(roomId, roomDir, lexicon, roomProblems, warnings);
+    if (await isDraft(roomDir)) {
+      draftIds.push(roomId);
+      warnings.push(...roomProblems.map((p) => `${p} (draft)`));
+      if (room) drafts.push(room);
+    } else {
+      problems.push(...roomProblems);
+      if (room) rooms.push(room);
+    }
   }
 
-  const used = new Set(rooms.flatMap((r) => r.manifest.objects.map((o) => o.id)));
+  const loaded = [...rooms, ...drafts];
+  const used = new Set(loaded.flatMap((r) => r.manifest.objects.map((o) => o.id)));
   for (const id of Object.keys(lexicon)) {
-    if (!used.has(id) && roomIds.length === rooms.length) {
+    if (!used.has(id) && roomIds.length === loaded.length) {
       warnings.push(`lexicon: "${id}" is not used by any room`);
     }
   }
 
-  return { lexicon, rooms, problems, warnings };
+  return { lexicon, rooms, drafts, draftIds, problems, warnings };
 }
 
 /**

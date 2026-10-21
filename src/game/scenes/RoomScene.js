@@ -6,12 +6,14 @@ const COLORS = {
   correct: [46, 160, 67],
   tryAgain: [240, 140, 40],
   reveal: [255, 196, 0],
+  target: [60, 150, 255],
 };
 
 const GLOW_COLORS = {
   correct: 0x3ccf5a,
   tryAgain: 0xffa03c,
   reveal: 0xffd000,
+  target: 0x3c96ff,
 };
 
 /** Objects smaller than this ring (logical px) get the reveal ring around them. */
@@ -20,6 +22,14 @@ const MAX_RING_RADIUS = 160;
 /**
  * Displays any room from its generated files and turns clicks/taps into object
  * instances. Feedback is driven by the session's events; the scene holds no rules.
+ *
+ * In Listen and find, a tap is the answer and feedback shows on the tapped object. In
+ * Look and identify and Recall and spell, the target object glows (blue) while the
+ * child answers in the shell, taps are ignored, and feedback shows on the target.
+ *
+ * Only one room is in memory at a time: when the scene shuts down (leaving the room),
+ * it releases every texture and cache entry of that room. The browser's HTTP cache
+ * avoids downloading them again on return.
  *
  * Emits on game.events: `roomReady` { roomId, layout, hitmap, scene }.
  */
@@ -43,10 +53,15 @@ export class RoomScene extends Scene {
     this.feedbackLayer = this.add.container(0, 0);
     this.session = null;
     this.unsubscribe = [];
+    /** @type {string | null} the object glowing as the target, if any */
+    this.highlighted = null;
 
     // Pointer events cover mouse, pen, and touch with one code path.
     this.input.on('pointerdown', (pointer) => this.handlePointer(pointer.worldX, pointer.worldY));
-    this.events.once('shutdown', () => this.detachSession());
+    this.events.once('shutdown', () => {
+      this.detachSession();
+      this.releaseRoom();
+    });
 
     this.game.events.emit('roomReady', {
       roomId,
@@ -64,7 +79,10 @@ export class RoomScene extends Scene {
     this.detachSession();
     this.session = session;
     this.unsubscribe = [
-      session.on('challengeStarted', () => this.clearFeedback()),
+      session.on('challengeStarted', ({ challenge }) => {
+        this.clearFeedback();
+        if (!this.answersByTap) this.highlightTarget(challenge.objectId);
+      }),
       session.on('answerEvaluated', ({ result }) => this.showFeedback(result)),
       session.on('roundEnded', () => this.clearFeedback()),
     ];
@@ -77,30 +95,60 @@ export class RoomScene extends Scene {
     this.clearFeedback();
   }
 
+  /** Whether the child answers by tapping an object (Listen and find). */
+  get answersByTap() {
+    return this.session?.activity === 'listenAndFind';
+  }
+
   /** @param {number} x logical x  @param {number} y logical y */
   handlePointer(x, y) {
     const index = instanceAt(this.hitmap, x, y);
     // Walls, floor, and decorative details are not answers.
-    if (!index || !this.session?.awaitingAnswer) return;
+    if (!index || !this.answersByTap || !this.session?.awaitingAnswer) return;
     this.lastTapped = this.layout.instances[index - 1];
     this.session.answer(this.lastTapped.objectId);
   }
 
   /** @param {import('../../core/exercise.js').AnswerResult} result */
   showFeedback(result) {
-    this.clearFeedback();
     const kind = result.outcome;
-    const instances =
-      kind === 'reveal'
-        ? this.layout.instances.filter((i) => i.objectId === result.objectId)
-        : [this.lastTapped];
-    const options = { pulse: kind !== 'tryAgain', fadeOut: kind === 'tryAgain' };
+    if (!this.answersByTap) {
+      // The target keeps glowing after a wrong answer; the shell says "try again".
+      if (kind === 'tryAgain') return;
+      this.clearFeedback();
+      this.highlight(this.instancesOf(result.objectId), kind);
+      return;
+    }
+    this.clearFeedback();
+    const instances = kind === 'reveal' ? this.instancesOf(result.objectId) : [this.lastTapped];
+    this.highlight(instances, kind);
+  }
 
+  /**
+   * Makes every instance of the object glow, to ask the child what it is.
+   * @param {string} objectId
+   */
+  highlightTarget(objectId) {
+    this.highlight(this.instancesOf(objectId), 'target');
+    this.highlighted = objectId;
+  }
+
+  /** @param {string} objectId */
+  instancesOf(objectId) {
+    return this.layout.instances.filter((i) => i.objectId === objectId);
+  }
+
+  /**
+   * @param {object[]} instances
+   * @param {'correct' | 'tryAgain' | 'reveal' | 'target'} kind
+   */
+  highlight(instances, kind) {
+    const options = { pulse: kind !== 'tryAgain', fadeOut: kind === 'tryAgain' };
     for (const instance of instances) {
       // Tinting needs WebGL; the Canvas renderer falls back to a region overlay.
       if (this.renderer.type === WEBGL && instance.glow) this.glow(instance, kind, options);
       else this.regionHighlight(instance, COLORS[kind], options);
-      if (kind === 'reveal') this.marker(instance);
+      if (kind === 'reveal' || kind === 'target') this.marker(instance, GLOW_COLORS[kind]);
     }
   }
 
@@ -109,7 +157,7 @@ export class RoomScene extends Scene {
    * cut-out, which is drawn exactly over the painted object. Both may grow slightly
    * (pulse) but never move or shrink, so the painted object underneath stays hidden.
    * @param {object} instance
-   * @param {'correct' | 'tryAgain' | 'reveal'} kind
+   * @param {'correct' | 'tryAgain' | 'reveal' | 'target'} kind
    * @param {{ pulse: boolean, fadeOut: boolean }} options
    */
   glow(instance, kind, { pulse, fadeOut }) {
@@ -219,20 +267,39 @@ export class RoomScene extends Scene {
   }
 
   /**
-   * A ring to draw the eye during a reveal: around a small object, so it does not hide
-   * it; at the tap point of a large one.
+   * A ring to draw the eye to a target or a reveal: around a small object, so it does
+   * not hide it; at the tap point of a large one.
+   * @param {object} instance
+   * @param {number} color
    */
-  marker(instance) {
+  marker(instance, color) {
     const { x: bx, y: by, w, h } = instance.bounds;
     const around = Math.max(w, h) / 2 + 28;
     const [x, y] = around <= MAX_RING_RADIUS ? [bx + w / 2, by + h / 2] : instance.tap;
     const radius = around <= MAX_RING_RADIUS ? Math.max(around, 60) : 60;
-    const ring = this.add.circle(x, y, radius).setStrokeStyle(14, 0xffc400);
+    const ring = this.add.circle(x, y, radius).setStrokeStyle(14, color);
     this.feedbackLayer.add(ring);
     this.tweens.add({ targets: ring, scale: 1.35, duration: 500, yoyo: true, repeat: -1 });
   }
 
+  /**
+   * Frees the room's textures (background, atlas, feedback and debug overlays, all keyed
+   * `<roomId>:…`) and its cached layout and hit map. Runs after the scene's display list
+   * has been destroyed, so nothing still draws them.
+   */
+  releaseRoom() {
+    const prefix = `${this.roomId}:`;
+    for (const key of this.textures.getTextureKeys()) {
+      if (key.startsWith(prefix)) this.textures.remove(key);
+    }
+    this.cache.json.remove(`${prefix}layout`);
+    this.cache.binary.remove(`${prefix}hitmap`);
+    this.layout = null;
+    this.hitmap = null;
+  }
+
   clearFeedback() {
+    this.highlighted = null;
     if (!this.feedbackLayer) return;
     this.tweens.killTweensOf(this.feedbackLayer.list);
     this.feedbackLayer.removeAll(true);

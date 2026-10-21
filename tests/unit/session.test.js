@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createListenAndFind } from '../../src/core/exercise.js';
+import { createListenAndFind, createRecallAndSpell } from '../../src/core/exercise.js';
 import { createRng } from '../../src/core/rng.js';
 import { createSession } from '../../src/core/session.js';
 
@@ -108,5 +108,64 @@ describe('createSession', () => {
     off();
     session.start();
     expect(seen).toHaveLength(0);
+  });
+});
+
+describe('createSession with typed answers', () => {
+  it('passes the answer through to the exercise and reports its activity', () => {
+    const exercise = createRecallAndSpell({
+      objects: [{ id: 'stove', label: 'stove', accepted: ['stove'] }],
+      rng: createRng(1),
+      roundLength: 1,
+    });
+    const session = createSession({ roomId: 'kitchen', exercise });
+    expect(session.activity).toBe('recallAndSpell');
+    session.start();
+    expect(session.answer(' Stove ').outcome).toBe('correct');
+    expect(session.score()).toMatchObject({ correct: 1, attempted: 1 });
+  });
+});
+
+describe('createSession: pause', () => {
+  it('does not count paused time', () => {
+    const { session, clock } = setup();
+    session.start();
+    clock.advance(2000);
+    session.pause();
+    expect(session.paused).toBe(true);
+    clock.advance(10000);
+    expect(session.score().elapsedMs).toBe(2000);
+    session.resume();
+    expect(session.paused).toBe(false);
+    clock.advance(1000);
+    expect(session.score().elapsedMs).toBe(3000);
+  });
+
+  it('adds up several pauses and ignores repeated calls', () => {
+    const { session, clock } = setup();
+    session.start();
+    for (let i = 0; i < 3; i++) {
+      clock.advance(1000);
+      session.pause();
+      session.pause();
+      clock.advance(5000);
+      session.resume();
+      session.resume();
+    }
+    expect(session.score().elapsedMs).toBe(3000);
+  });
+
+  it('cannot pause before the start or after the end', () => {
+    const { session, clock } = setup();
+    session.pause();
+    expect(session.paused).toBe(false);
+    session.start();
+    while (!session.roundOver) {
+      session.answer(session.challenge.objectId);
+      session.next();
+    }
+    clock.advance(1000);
+    session.pause();
+    expect(session.paused).toBe(false);
   });
 });

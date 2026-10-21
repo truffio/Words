@@ -8,12 +8,29 @@ const manifests = import.meta.glob('../../content/rooms/*/manifest.json', {
   import: 'default',
 });
 
+// Draft rooms are unfinished and never built, so the game leaves them out.
 const rooms = new Map(
-  Object.values(manifests).map((manifest) => [manifest.id, buildRoomContent(manifest, lexicon)]),
+  Object.values(manifests)
+    .filter((manifest) => !manifest.draft)
+    .map((manifest) => [manifest.id, buildRoomContent(manifest, lexicon)]),
 );
 
 /** IDs of all rooms, in folder order. */
 export const roomIds = [...rooms.keys()];
+
+/**
+ * Base URL of a room's generated files (build:rooms), relative to the page so the game
+ * works under any path (e.g. GitHub Pages).
+ * @param {string} roomId
+ */
+export const roomAssetsUrl = (roomId) => `assets/rooms/${roomId}`;
+
+/** Every room's ID, name, and thumbnail, for the room selection screen. */
+export const roomChoices = [...rooms.values()].map(({ id, title }) => ({
+  id,
+  title,
+  thumbnail: `${roomAssetsUrl(id)}/thumbnail.webp`,
+}));
 
 /**
  * @param {string} roomId

@@ -1,7 +1,7 @@
 import { createEmitter } from './events.js';
 
 /**
- * A play session for one round in one room, held in memory only.
+ * A play session for one round of one activity in one room, held in memory only.
  *
  * Events:
  * - `challengeStarted` { challenge, score }
@@ -9,13 +9,14 @@ import { createEmitter } from './events.js';
  * - `roundEnded`       { score }
  *
  * `score` is { correct, attempted, elapsedMs }, where `attempted` counts challenges
- * that have ended (answered correctly or revealed).
+ * that have ended (answered correctly or revealed). Time spent paused (the game menu
+ * is open) does not count.
  */
 
 /**
  * @param {object} options
  * @param {string} options.roomId
- * @param {ReturnType<typeof import('./exercise.js').createListenAndFind>} options.exercise
+ * @param {import('./exercise.js').Exercise} options.exercise
  * @param {() => number} [options.now] clock in milliseconds
  */
 export function createSession({ roomId, exercise, now = Date.now }) {
@@ -24,11 +25,13 @@ export function createSession({ roomId, exercise, now = Date.now }) {
   let attempted = 0;
   let startedAt = 0;
   let endedAt = 0;
+  let pausedAt = 0;
+  let pausedMs = 0;
   let roundOver = false;
 
   function score() {
-    const end = endedAt || now();
-    return { correct, attempted, elapsedMs: startedAt ? end - startedAt : 0 };
+    const end = endedAt || pausedAt || now();
+    return { correct, attempted, elapsedMs: startedAt ? end - startedAt - pausedMs : 0 };
   }
 
   function startNext() {
@@ -44,6 +47,7 @@ export function createSession({ roomId, exercise, now = Date.now }) {
 
   return {
     roomId,
+    activity: exercise.activity,
     on: emitter.on,
     score,
 
@@ -60,6 +64,22 @@ export function createSession({ roomId, exercise, now = Date.now }) {
       return roundOver;
     },
 
+    get paused() {
+      return pausedAt !== 0;
+    },
+
+    /** Stops the clock, e.g. while the game menu is open. */
+    pause() {
+      if (startedAt && !roundOver && !pausedAt) pausedAt = now();
+    },
+
+    /** Restarts the clock after a pause. */
+    resume() {
+      if (!pausedAt) return;
+      pausedMs += now() - pausedAt;
+      pausedAt = 0;
+    },
+
     /** Starts the round with its first challenge. */
     start() {
       if (startedAt) throw new Error('The session has already started.');
@@ -68,11 +88,11 @@ export function createSession({ roomId, exercise, now = Date.now }) {
     },
 
     /**
-     * @param {string} objectId the object the child chose
+     * @param {string} answer the object the child chose, or the text they typed
      * @returns {import('./exercise.js').AnswerResult}
      */
-    answer(objectId) {
-      const result = exercise.answer(objectId);
+    answer(answer) {
+      const result = exercise.answer(answer);
       if (result.done) {
         attempted++;
         if (result.outcome === 'correct') correct++;

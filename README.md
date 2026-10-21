@@ -4,8 +4,9 @@ An English vocabulary game for children, played in the browser. The child explor
 
 - Game concept: [WORDS.md](WORDS.md)
 - Technical design and implementation plan: [TECHNICAL.md](TECHNICAL.md)
+- Rooms and their words: [docs/rooms.md](docs/rooms.md) (proposal)
 - Art: [style guide](docs/art/style-guide.md) (cartoon, kawaii, isometric) and [making masks](docs/art/masks.md)
-- Milestone reports: [M0: Project Setup](docs/milestones/M0.md), [M1: First Playable Room](docs/milestones/M1.md)
+- Milestone reports: [M0: Project Setup](docs/milestones/M0.md), [M1: First Playable Room](docs/milestones/M1.md), [M4: Look and Identify, Recall and Spell](docs/milestones/M4.md), [M6: Multiple Rooms and Performance](docs/milestones/M6.md)
 
 ## Getting started
 
@@ -29,7 +30,9 @@ Add `?debug=hits` to the URL (dev server only) to see each object's clickable ar
 | `npm run masks` | Open the mask tool (dev server): click objects on a room painting to make their masks. See [docs/art/masks.md](docs/art/masks.md). |
 | `npm run validate:content` | Check the lexicon, manifests, and masks without building; lists all problems and warnings. |
 | `npm run build:test` | Build the test version (with the test bridge) into `dist-test/`. |
-| `npm run make:placeholder-kitchen` | Redraw the placeholder kitchen painting and masks. |
+| `npm run new-room <id> "<Title>"` | Start a room: creates `content/rooms/<id>/` with a draft manifest (checked, but not built or shown until `"draft": true` is removed). |
+| `npm run make:placeholder-rooms` | Redraw the placeholder bedroom and bathroom paintings and masks. |
+| `npm run make:placeholder-kitchen` | Redraw the M1 placeholder kitchen into a folder: `npm run make:placeholder-kitchen -- <folder>` (without a folder it overwrites the real kitchen). |
 | `npm run preview` | Serve the production build on port 4173. |
 | `npm run lint` | Check code with ESLint and formatting with Prettier. |
 | `npm run format` | Format with Prettier and apply ESLint fixes. |
@@ -64,7 +67,7 @@ src/
   test-bridge/      Test-only hooks for end-to-end tests
   app.js            Connects shell, game, and core
   main.js           Entry point
-tools/            Build and content scripts (build:rooms, validate:content, placeholder kitchen)
+tools/            Build and content scripts (build:rooms, validate:content, new-room, placeholder rooms)
   lib/              Shared loading/checking (room-content.js) and pure algorithms (room-build.js)
   mask-tool/        Browser mask tool (Segment Anything + magic wand), dev server only
 docs/art/         Art style guide and masking guide

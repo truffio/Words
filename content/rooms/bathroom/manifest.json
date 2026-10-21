@@ -1,0 +1,16 @@
+{
+  "id": "bathroom",
+  "title": "Bathroom",
+  "objects": [
+    { "id": "sink", "difficulty": 1 },
+    { "id": "window", "difficulty": 1 },
+    { "id": "toilet", "difficulty": 1 },
+    { "id": "bathtub", "difficulty": 1 },
+    { "id": "towel", "difficulty": 2 },
+    { "id": "mirror", "difficulty": 2 },
+    { "id": "soap", "difficulty": 2 },
+    { "id": "shower", "difficulty": 2 },
+    { "id": "toothbrush", "difficulty": 2 },
+    { "id": "bath-mat", "difficulty": 3 }
+  ]
+}

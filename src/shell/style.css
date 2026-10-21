@@ -5,6 +5,8 @@
   --try-again: #c76a12;
   --reveal: #a77b00;
   --hud-bg: #ffffff;
+  --choice-bg: #e8eefc;
+  --wrong-bg: #f3e3d3;
 }
 
 html,
@@ -38,8 +40,66 @@ body {
 }
 
 #game-container {
+  position: relative;
   min-width: 0;
   min-height: 0;
+}
+
+/* Game menu: an icon in the corner of the game window whenever a room is open. */
+#menu-button {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 1;
+  display: none;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0;
+  padding: 0;
+  border: 3px solid var(--ink);
+  border-radius: 1rem;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgb(31 42 68 / 35%);
+}
+
+#app[data-screen='start'] #menu-button,
+#app[data-screen='playing'] #menu-button,
+#app[data-screen='summary'] #menu-button {
+  display: grid;
+}
+
+#menu-button svg {
+  width: 2rem;
+  height: 2rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+#menu {
+  border: none;
+  color: var(--ink);
+}
+
+#menu::backdrop {
+  background: rgb(31 42 68 / 70%);
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.menu-buttons button {
+  margin: 0;
+}
+
+.menu-buttons button[hidden] {
+  display: none;
 }
 
 /* HUD */
@@ -76,6 +136,107 @@ body {
 
 #feedback[data-outcome='reveal'] {
   color: var(--reveal);
+}
+
+/* Activity-specific controls: shown only during their own activity. */
+#hud [data-for] {
+  display: none;
+}
+
+#app[data-activity='lookAndIdentify'] #hud [data-for='lookAndIdentify'],
+#app[data-activity='recallAndSpell'] #hud [data-for='recallAndSpell'] {
+  display: flex;
+}
+
+/* Look and identify: word buttons */
+.choices {
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.choice {
+  margin: 0;
+  padding: 0.55em 0.8em;
+  border: 4px solid transparent;
+  border-radius: 1rem;
+  background: var(--choice-bg);
+  color: var(--ink);
+  font-size: clamp(1.3rem, 2.4vw, 2rem);
+}
+
+.choice:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.choice:disabled {
+  cursor: default;
+}
+
+.choice[data-state='correct'] {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.choice[data-state='answer'] {
+  border-color: var(--reveal);
+  background: #fff3c4;
+}
+
+.choice[data-state='wrong'] {
+  background: var(--wrong-bg);
+  color: var(--try-again);
+  text-decoration: line-through;
+}
+
+/* Recall and spell: spelling input */
+.spelling {
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+#spelling-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.4em 0.6em;
+  border: 4px solid var(--ink);
+  border-radius: 1rem;
+  color: var(--ink);
+  font: inherit;
+  font-size: clamp(1.5rem, 2.8vw, 2.4rem);
+  font-weight: 700;
+}
+
+#spelling-input[data-outcome='correct'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#spelling-input[data-outcome='tryAgain'] {
+  border-color: var(--try-again);
+}
+
+#spelling-input[data-outcome='reveal'] {
+  border-color: var(--reveal);
+  background: #fff3c4;
+}
+
+#check-button {
+  margin: 0;
+}
+
+#check-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .stats {
@@ -122,6 +283,23 @@ body {
     grid-row: 1 / span 2;
     margin-top: 0;
   }
+
+  /* Word buttons and spelling input form a row under the prompt. */
+  #hud [data-for] {
+    grid-column: 1 / -1;
+  }
+
+  .choices {
+    flex-flow: row wrap;
+  }
+
+  .choice {
+    flex: 1 1 0;
+  }
+
+  .spelling {
+    flex-direction: row;
+  }
 }
 
 /* Overlays: shown only for their own screen. */
@@ -133,6 +311,7 @@ body {
   background: rgb(31 42 68 / 70%);
 }
 
+#app[data-screen='rooms'] .overlay[data-for='rooms'],
 #app[data-screen='start'] .overlay[data-for='start'],
 #app[data-screen='loading'] .overlay[data-for='loading'],
 #app[data-screen='summary'] .overlay[data-for='summary'] {
@@ -165,6 +344,95 @@ button {
   font-size: 1.6rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* Room selection: one large button per room, with its picture above its name. */
+.rooms {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  max-width: min(90vw, 64rem);
+  margin-top: 1rem;
+}
+
+.room {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 13rem;
+  margin: 0;
+  padding: 0.6rem 0.6rem 0.8rem;
+  border-radius: 1.5rem;
+  font-size: 1.4rem;
+}
+
+.room img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 1rem;
+  background: var(--paper);
+}
+
+/* Loading screen */
+.progress {
+  height: 1rem;
+  margin-top: 1rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--choice-bg);
+}
+
+#loading-bar {
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s;
+}
+
+/* Start screen: one large button per activity, with an icon above its name. */
+.activities {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.activity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  width: 10.5em;
+  margin: 0;
+  padding: 1rem;
+  border-radius: 1.5rem;
+  font-size: 1.3rem;
+}
+
+.activity svg {
+  width: 4rem;
+  height: 4rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.summary-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+
+button.secondary {
+  background: var(--choice-bg);
+  color: var(--ink);
 }
 
 button:focus-visible {

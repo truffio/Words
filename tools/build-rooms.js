@@ -3,6 +3,7 @@
  * public/assets/rooms/<room>/:
  *
  *   background.webp   the painting
+ *   thumbnail.webp    a small copy of the painting for the room selection screen
  *   objects.json      Phaser multi-atlas of object cut-outs and their white glow halos,
  *                     with pages objects-<n>.webp
  *   hitmap.bin        instance index per hit-map pixel (half resolution), run-length
@@ -12,7 +13,8 @@
  *
  * and a review image, reports/rooms/<room>-debug-hits.png, showing every hit region.
  *
- * Runs the same checks as validate:content first and stops on any problem.
+ * Runs the same checks as validate:content first and stops on any problem. Draft rooms
+ * (`"draft": true` in the manifest) are skipped.
  *
  * Usage: node tools/build-rooms.js
  */
@@ -53,6 +55,9 @@ const colourOf = (value) => PALETTE[(value - 1) % PALETTE.length];
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 const escapeXml = (s) => s.replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** Thumbnail size for the room selection screen (4:3, sharp on 2× screens). */
+const THUMBNAIL = { width: 480, height: 360 };
 
 /** Glow halo width around each object (logical px). */
 const GLOW_RADIUS = 24;
@@ -175,6 +180,10 @@ async function buildRoom(room) {
   const backgroundFile = path.join(outDir, 'background.webp');
   await sharp(room.paintingFile).webp({ quality: 85 }).toFile(backgroundFile);
   const background = (await stat(backgroundFile)).size;
+  await sharp(room.paintingFile)
+    .resize(THUMBNAIL.width, THUMBNAIL.height)
+    .webp({ quality: 80 })
+    .toFile(path.join(outDir, 'thumbnail.webp'));
 
   const atlas = await writeAtlas(
     room,
@@ -259,6 +268,7 @@ async function main() {
 
   const ok = report('build:rooms', { problems, warnings });
   for (const summary of summaries) console.log(`build:rooms: ${summary}`);
+  for (const id of content.draftIds) console.log(`build:rooms: ${id}: draft, skipped`);
   process.exit(ok ? 0 : 1);
 }
 
