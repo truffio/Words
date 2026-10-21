@@ -74,13 +74,16 @@ cropped objects, clutter, blurry, noisy texture
 
 ## 4. Workflow
 
-1. **List the room's ~25 objects** in the manifest (`content/rooms/<room>/manifest.json`) and lexicon.
-2. **Generate** several images with the prompt template. Pick the one with the best overall layout and style, even if some objects are missing or wrong.
-3. **Fix with inpainting:** select the area where an object is missing or wrong and prompt only for that object, in the same style ("a cute kawaii cartoon toaster, isometric view, pastel colours, dark navy outline"). Repeat until every manifest object is present.
-4. **Check against the manifest:** every object present, recognisable, not hidden, not cropped, no text.
-5. **Upscale** if the tool generates small images (most tools offer an upscaler), ideally in 4:3.
-6. **Load it** in the mask tool with **Load new painting…**: it is saved as `content/rooms/<room>/room.png`, resized to 2048 × 1536, and centre-cropped to 4:3 if needed.
-7. **Make the masks** with the mask tool ([masks.md](masks.md)).
+1. **Start the room** with `npm run new-room <id> "<Title>"` (e.g. `npm run new-room living-room "Living room"`). It creates `content/rooms/<id>/manifest.json` marked `"draft": true`: the room is checked by `validate:content`, but its problems are only warnings, and it is not built or shown in the game. An unfinished room never blocks `dev`, CI, or deployment.
+2. **List the room's ~25 objects** in the manifest and the lexicon (`content/lexicon.json`), reusing shared words (*chair*, *table*, *window*) and the room list in [rooms.md](../rooms.md).
+3. **Generate** several images with the prompt template. Pick the one with the best overall layout and style, even if some objects are missing or wrong.
+4. **Fix with inpainting:** select the area where an object is missing or wrong and prompt only for that object, in the same style ("a cute kawaii cartoon toaster, isometric view, pastel colours, dark navy outline"). Repeat until every manifest object is present.
+5. **Check against the manifest:** every object present, recognisable, not hidden, not cropped, no text.
+6. **Upscale** if the tool generates small images (most tools offer an upscaler), ideally in 4:3.
+7. **Load it** in the mask tool with **Load new painting…**: it is saved as `content/rooms/<room>/room.png`, resized to 2048 × 1536, and centre-cropped to 4:3 if needed.
+8. **Make the masks** with the mask tool ([masks.md](masks.md)).
+9. **Check** with `npm run validate:content` until it reports no warnings marked *(draft)*.
+10. **Publish:** remove `"draft": true` from the manifest. The room is now built, tested in CI, and shown on the room selection screen.
 
 ---
 

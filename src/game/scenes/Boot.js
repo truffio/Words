@@ -1,8 +1,9 @@
 import { Scene } from 'phaser';
 
 /**
- * First scene. Nothing to load yet: shared assets (UI, sounds) arrive in later
- * milestones. Waits for the app to request a room.
+ * First scene. Shared assets used by every room (UI, feedback sounds) are preloaded
+ * here once, and stay loaded while rooms come and go; there are none yet (feedback
+ * sounds arrive with M3). Then waits for the app to request a room.
  */
 export class Boot extends Scene {
   constructor() {

@@ -10,6 +10,7 @@ async function startRound(page, seed = 42, nextDelay = null) {
   await page.waitForFunction(() => window.__wordsTest);
   await page.evaluate((s) => window.__wordsTest.setSeed(s), seed);
   await page.evaluate((ms) => window.__wordsTest.setNextDelay(ms), nextDelay);
+  await page.getByRole('button', { name: 'Kitchen' }).click();
   await page.getByRole('button', { name: 'Listen and find' }).click();
   await page.waitForFunction(() => window.__wordsTest.state.awaitingAnswer);
 }

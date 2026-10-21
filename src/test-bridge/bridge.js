@@ -28,6 +28,7 @@ export function installTestBridge(app, game) {
       const challenge = app.session?.challenge ?? null;
       return {
         screen: app.shell.screen,
+        room: app.roomId,
         activity: app.session?.activity ?? null,
         challengeNumber: challenge?.number ?? 0,
         challenge: challenge?.objectId ?? null,
@@ -42,6 +43,11 @@ export function installTestBridge(app, game) {
     word(objectId) {
       const object = app.room?.byId.get(objectId);
       return object ? { label: object.label, accepted: object.accepted } : null;
+    },
+
+    /** Keys of every texture in memory, to check that leaving a room frees its own. */
+    textureKeys() {
+      return game.textures.getTextureKeys();
     },
 
     /** Each instance's tap point in page (CSS pixel) coordinates. */

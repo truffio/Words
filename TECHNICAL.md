@@ -248,6 +248,8 @@ The raw number of vocabulary entries is **not** a constraint, and hit testing co
 
 ### Initial Budgets (to confirm on the iPad in M6)
 
+Measured on a laptop in M6 (desktop Chromium, local server, [M6 report](docs/milestones/M6.md#performance)): room switch 0.6 s, tap-to-feedback under 10 ms, no memory growth over 12 switches. The iPad measurements are still to do.
+
 | Item | Target |
 |------|--------|
 | Room background | 2048 × 1536 WebP, ≤ 600 KB |
@@ -358,11 +360,12 @@ Words/
 ├── playwright.config.js
 ├── .github/workflows/ci.yml
 ├── docs/milestones/             # one completion report per milestone (M0.md, …)
+├── docs/rooms.md                # rooms and their vocabulary
 ├── content/                     # source of truth (committed)
 │   ├── lexicon.json
 │   ├── schemas/                 # JSON Schemas
 │   └── rooms/<room>/
-│       ├── manifest.json
+│       ├── manifest.json        # "draft": true until the room is finished
 │       ├── room.png             # final painting, 2048 × 1536
 │       └── masks/<objectId>[@n].png
 ├── public/assets/               # served as-is by Vite
@@ -375,7 +378,7 @@ Words/
 │   ├── shell/                   # DOM UI: start, room select, HUD, summary, spelling input
 │   ├── test-bridge/
 │   └── main.js
-├── tools/                       # build-rooms, validate-content, generate-audio
+├── tools/                       # build-rooms, validate-content, new-room, generate-audio
 └── tests/
     ├── unit/
     └── e2e/
@@ -451,6 +454,8 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 
 ### M6: Multiple Rooms and Performance
 
+> **Status: done on desktop; the iPad measurements (#60) and the agreement on the room list (#61) remain.** Built before M5. See the [M6 completion report](docs/milestones/M6.md).
+
 - Room selection screen; per-room loading and unloading; shared-asset preloading; optional next-room prefetch.
 - Produce **2–3 additional rooms** through the pipeline.
 - Measure load time, memory, and latency on the iPad (the constrained device); confirm or adjust the §6 budgets.
@@ -478,11 +483,15 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 | G | Highlight technique: runtime glow filter vs. build-time outline frames | **Settled (M2):** build-time glow halos, tinted at runtime (the runtime filter was too slow to set up, §5); check the look on the iPad in M5 | M2 |
 | H | How the child moves between activities: free choice vs. suggested progression per room | **Settled (M4):** free choice of the three activities on the start screen; the round summary offers *Play again* and *Change activity* | M4 |
 | I | Spelling input on the iPad: on-screen keyboard vs. custom in-game keyboard | Start with the on-screen keyboard; reconsider after testing with the child | M5 |
-| J | Final list of the 12 rooms and their vocabulary | Kitchen first; others defined during M6–M7 | M6 |
+| J | Final list of the 12 rooms and their vocabulary | **Proposed (M6):** 12 rooms of 25 words in [rooms.md](docs/rooms.md), to agree | M6 |
 
 ---
 
 ## Revision Notes
+
+**Revision 12: M6 rooms**
+
+- Room selection, one room in memory at a time, draft rooms and `new-room`; two placeholder rooms; room list proposed in [rooms.md](docs/rooms.md) (decision J).
 
 **Revision 11: M4 activities**
 

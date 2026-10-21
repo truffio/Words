@@ -253,6 +253,7 @@ body {
   background: rgb(31 42 68 / 70%);
 }
 
+#app[data-screen='rooms'] .overlay[data-for='rooms'],
 #app[data-screen='start'] .overlay[data-for='start'],
 #app[data-screen='loading'] .overlay[data-for='loading'],
 #app[data-screen='summary'] .overlay[data-for='summary'] {
@@ -285,6 +286,52 @@ button {
   font-size: 1.6rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* Room selection: one large button per room, with its picture above its name. */
+.rooms {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  max-width: min(90vw, 64rem);
+  margin-top: 1rem;
+}
+
+.room {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 13rem;
+  margin: 0;
+  padding: 0.6rem 0.6rem 0.8rem;
+  border-radius: 1.5rem;
+  font-size: 1.4rem;
+}
+
+.room img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 1rem;
+  background: var(--paper);
+}
+
+/* Loading screen */
+.progress {
+  height: 1rem;
+  margin-top: 1rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--choice-bg);
+}
+
+#loading-bar {
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s;
 }
 
 /* Start screen: one large button per activity, with an icon above its name. */

@@ -27,6 +27,10 @@ const MAX_RING_RADIUS = 160;
  * Look and identify and Recall and spell, the target object glows (blue) while the
  * child answers in the shell, taps are ignored, and feedback shows on the target.
  *
+ * Only one room is in memory at a time: when the scene shuts down (leaving the room),
+ * it releases every texture and cache entry of that room. The browser's HTTP cache
+ * avoids downloading them again on return.
+ *
  * Emits on game.events: `roomReady` { roomId, layout, hitmap, scene }.
  */
 export class RoomScene extends Scene {
@@ -54,7 +58,10 @@ export class RoomScene extends Scene {
 
     // Pointer events cover mouse, pen, and touch with one code path.
     this.input.on('pointerdown', (pointer) => this.handlePointer(pointer.worldX, pointer.worldY));
-    this.events.once('shutdown', () => this.detachSession());
+    this.events.once('shutdown', () => {
+      this.detachSession();
+      this.releaseRoom();
+    });
 
     this.game.events.emit('roomReady', {
       roomId,
@@ -273,6 +280,22 @@ export class RoomScene extends Scene {
     const ring = this.add.circle(x, y, radius).setStrokeStyle(14, color);
     this.feedbackLayer.add(ring);
     this.tweens.add({ targets: ring, scale: 1.35, duration: 500, yoyo: true, repeat: -1 });
+  }
+
+  /**
+   * Frees the room's textures (background, atlas, feedback and debug overlays, all keyed
+   * `<roomId>:…`) and its cached layout and hit map. Runs after the scene's display list
+   * has been destroyed, so nothing still draws them.
+   */
+  releaseRoom() {
+    const prefix = `${this.roomId}:`;
+    for (const key of this.textures.getTextureKeys()) {
+      if (key.startsWith(prefix)) this.textures.remove(key);
+    }
+    this.cache.json.remove(`${prefix}layout`);
+    this.cache.binary.remove(`${prefix}hitmap`);
+    this.layout = null;
+    this.hitmap = null;
   }
 
   clearFeedback() {

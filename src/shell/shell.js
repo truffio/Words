@@ -1,9 +1,10 @@
 /**
- * The HTML/CSS user interface around the canvas: start screen with the activity
- * choice, prompt, feedback, word buttons (Look and identify), spelling input (Recall
- * and spell), score and timer (HUD), loading screen, and round summary.
+ * The HTML/CSS user interface around the canvas: room selection, start screen with the
+ * activity choice, prompt, feedback, word buttons (Look and identify), spelling input
+ * (Recall and spell), score and timer (HUD), loading screen, and round summary.
  *
- * Screens: 'start' | 'loading' | 'playing' | 'summary' (set on #app[data-screen]).
+ * Screens: 'rooms' | 'start' | 'loading' | 'playing' | 'summary' (set on
+ * #app[data-screen]).
  * The current activity is set on #app[data-activity]; elements with a `data-for`
  * activity are shown only during it.
  */
@@ -50,8 +51,17 @@ export function summaryMessage({ correct, attempted }, activity) {
 }
 
 /**
+ * @typedef {object} RoomChoice
+ * @property {string} id
+ * @property {string} title
+ * @property {string} thumbnail image URL
+ */
+
+/**
  * @param {HTMLElement} root the #app element
  * @param {object} handlers
+ * @param {(roomId: string) => void} handlers.onChooseRoom
+ * @param {() => void} handlers.onChangeRoom
  * @param {(activity: Activity) => void} handlers.onChooseActivity
  * @param {() => void} handlers.onPlayAgain
  * @param {() => void} handlers.onChangeActivity
@@ -60,7 +70,15 @@ export function summaryMessage({ correct, attempted }, activity) {
  */
 export function createShell(
   root,
-  { onChooseActivity, onPlayAgain, onChangeActivity, onChoose, onSpell },
+  {
+    onChooseRoom,
+    onChangeRoom,
+    onChooseActivity,
+    onPlayAgain,
+    onChangeActivity,
+    onChoose,
+    onSpell,
+  },
 ) {
   const $ = (id) => /** @type {HTMLElement} */ (root.querySelector(`#${id}`));
   const prompt = $('prompt');
@@ -73,6 +91,17 @@ export function createShell(
   const timer = $('timer');
   const summaryText = $('summary-text');
   const summaryTime = $('summary-time');
+  const roomList = $('room-list');
+  const roomTitle = $('room-title');
+  const loadingBar = $('loading-bar');
+
+  roomList.addEventListener('click', (event) => {
+    const button = /** @type {HTMLElement} */ (event.target).closest('button');
+    if (button) onChooseRoom(button.dataset.roomId);
+  });
+  for (const button of root.querySelectorAll('.change-room-button')) {
+    button.addEventListener('click', onChangeRoom);
+  }
 
   for (const button of root.querySelectorAll('button[data-activity]')) {
     button.addEventListener('click', () =>
@@ -96,16 +125,47 @@ export function createShell(
   });
 
   return {
-    /** @param {'start' | 'loading' | 'playing' | 'summary'} name */
+    /** @param {'rooms' | 'start' | 'loading' | 'playing' | 'summary'} name */
     showScreen(name) {
       root.dataset.screen = name;
-      const focus =
-        name === 'start'
-          ? root.querySelector('button[data-activity]')
-          : name === 'summary'
-            ? $('play-again-button')
-            : null;
+      const focus = {
+        rooms: () => roomList.querySelector('button'),
+        start: () => root.querySelector('button[data-activity]'),
+        summary: () => $('play-again-button'),
+      }[name]?.();
       /** @type {HTMLElement | null} */ (focus)?.focus();
+    },
+
+    /**
+     * Fills the room selection screen: one button per room, with its picture and name.
+     * @param {RoomChoice[]} rooms
+     */
+    showRooms(rooms) {
+      roomList.replaceChildren(
+        ...rooms.map(({ id, title, thumbnail }) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'room';
+          button.dataset.roomId = id;
+          const image = document.createElement('img');
+          image.src = thumbnail;
+          image.alt = '';
+          const name = document.createElement('span');
+          name.textContent = title;
+          button.append(image, name);
+          return button;
+        }),
+      );
+    },
+
+    /** @param {string} title the current room's name, shown above the activities */
+    setRoomTitle(title) {
+      roomTitle.textContent = title;
+    },
+
+    /** @param {number} progress 0 to 1 */
+    setLoadingProgress(progress) {
+      loadingBar.style.width = `${Math.round(progress * 100)}%`;
     },
 
     get screen() {

@@ -25,14 +25,20 @@ export function startGame(parent) {
 }
 
 /**
- * Loads a room and resolves when it is displayed.
+ * Loads a room and resolves when it is displayed. The room shown before, if any, is
+ * stopped first, which releases its assets (see RoomScene).
  * @param {Game} game
  * @param {string} roomId
+ * @param {(progress: number) => void} [onProgress] loading progress, 0 to 1
  * @returns {Promise<{ roomId: string, layout: object, hitmap: object, scene: RoomScene }>}
  */
-export function loadRoom(game, roomId) {
+export function loadRoom(game, roomId, onProgress = () => {}) {
   return new Promise((resolve) => {
-    game.events.once('roomReady', resolve);
+    game.events.on('roomLoadProgress', onProgress);
+    game.events.once('roomReady', (room) => {
+      game.events.off('roomLoadProgress', onProgress);
+      resolve(room);
+    });
     const start = () => {
       if (game.scene.isActive('Room')) game.scene.stop('Room');
       game.scene.start('Preload', { roomId });

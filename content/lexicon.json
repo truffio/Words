@@ -43,5 +43,85 @@
     "label": "cup",
     "prompt": "Find the cup.",
     "accepted": ["cup", "mug"]
+  },
+  "bed": {
+    "label": "bed",
+    "prompt": "Find the bed.",
+    "accepted": ["bed"]
+  },
+  "pillow": {
+    "label": "pillow",
+    "prompt": "Find the pillow.",
+    "accepted": ["pillow"]
+  },
+  "lamp": {
+    "label": "lamp",
+    "prompt": "Find the lamp.",
+    "accepted": ["lamp"]
+  },
+  "wardrobe": {
+    "label": "wardrobe",
+    "prompt": "Find the wardrobe.",
+    "accepted": ["wardrobe", "closet"]
+  },
+  "desk": {
+    "label": "desk",
+    "prompt": "Find the desk.",
+    "accepted": ["desk"]
+  },
+  "book": {
+    "label": "book",
+    "prompt": "Find the book.",
+    "accepted": ["book"]
+  },
+  "rug": {
+    "label": "rug",
+    "prompt": "Find the rug.",
+    "accepted": ["rug", "carpet"]
+  },
+  "teddy-bear": {
+    "label": "teddy bear",
+    "prompt": "Find the teddy bear.",
+    "accepted": ["teddy bear", "teddy"]
+  },
+  "mirror": {
+    "label": "mirror",
+    "prompt": "Find the mirror.",
+    "accepted": ["mirror"]
+  },
+  "towel": {
+    "label": "towel",
+    "prompt": "Find the towel.",
+    "accepted": ["towel"]
+  },
+  "toothbrush": {
+    "label": "toothbrush",
+    "prompt": "Find the toothbrush.",
+    "accepted": ["toothbrush"]
+  },
+  "soap": {
+    "label": "soap",
+    "prompt": "Find the soap.",
+    "accepted": ["soap"]
+  },
+  "toilet": {
+    "label": "toilet",
+    "prompt": "Find the toilet.",
+    "accepted": ["toilet"]
+  },
+  "shower": {
+    "label": "shower",
+    "prompt": "Find the shower.",
+    "accepted": ["shower"]
+  },
+  "bathtub": {
+    "label": "bathtub",
+    "prompt": "Find the bathtub.",
+    "accepted": ["bathtub", "bath", "tub"]
+  },
+  "bath-mat": {
+    "label": "bath mat",
+    "prompt": "Find the bath mat.",
+    "accepted": ["bath mat", "mat"]
   }
 }

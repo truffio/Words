@@ -5,9 +5,13 @@ import {
 } from './core/exercise.js';
 import { createRng, randomSeed } from './core/rng.js';
 import { createSession } from './core/session.js';
-import { getRoom } from './game/content.js';
+import { getRoom, roomChoices } from './game/content.js';
 import { loadRoom } from './game/main.js';
+import { prefetchRoom } from './game/prefetch.js';
 import { ACTIVITY_PROMPTS, createShell } from './shell/shell.js';
+
+/** How long after a room opens the next room is prefetched, to leave the network free. */
+const PREFETCH_DELAY_MS = 2000;
 
 /** How long feedback stays on screen before the next challenge. */
 const NEXT_DELAY_MS = { correct: 1200, reveal: 2400 };
@@ -21,23 +25,24 @@ const EXERCISES = {
 };
 
 /**
- * Connects the shell (DOM), the game (Phaser), and the core rules: loads a room,
- * runs rounds of the chosen activity, and keeps the HUD in sync with the session.
+ * Connects the shell (DOM), the game (Phaser), and the core rules: loads the chosen
+ * room, runs rounds of the chosen activity, and keeps the HUD in sync with the session.
  *
- * The child chooses freely among the three activities on the start screen, and can
- * change activity from the round summary (open decision H).
+ * The child first chooses a room, then freely among the three activities (open
+ * decision H). The round summary offers to change activity or room.
  * @param {object} options
  * @param {import('phaser').Game} options.game
  * @param {HTMLElement} options.root the #app element
- * @param {string} [options.roomId]
  */
-export function createApp({ game, root, roomId = 'kitchen' }) {
+export function createApp({ game, root }) {
   /** @type {number | null} fixed seed (tests), or null for a random one each round */
   let seed = null;
   /** @type {number | null} fixed feedback time (tests), or null for NEXT_DELAY_MS */
   let nextDelay = null;
+  /** @type {import('./core/content.js').RoomContent | null} */
   let room = null;
   let roomView = null;
+  let prefetchId = 0;
   /** @type {import('./core/exercise.js').Activity} */
   let activity = 'listenAndFind';
   let session = null;
@@ -46,6 +51,11 @@ export function createApp({ game, root, roomId = 'kitchen' }) {
   let nextId = 0;
 
   const shell = createShell(root, {
+    onChooseRoom: (roomId) => openRoom(roomId),
+    onChangeRoom: () => {
+      stopRound();
+      shell.showScreen('rooms');
+    },
     onChooseActivity: (chosen) => start(chosen),
     onPlayAgain: () => startRound(),
     onChangeActivity: () => {
@@ -56,16 +66,37 @@ export function createApp({ game, root, roomId = 'kitchen' }) {
     onSpell: (text) => answer(text),
   });
 
-  /** @param {import('./core/exercise.js').Activity} chosen */
-  async function start(chosen) {
-    activity = chosen;
-    if (!roomView) {
+  /**
+   * Shows a room, loading it unless it is already open, then offers the activities.
+   * @param {string} roomId
+   */
+  async function openRoom(roomId) {
+    if (room?.id !== roomId || !roomView) {
+      stopRound();
+      clearTimeout(prefetchId);
+      shell.setLoadingProgress(0);
       shell.showScreen('loading');
       room = getRoom(roomId);
-      roomView = await loadRoom(game, roomId);
+      roomView = null;
+      roomView = await loadRoom(game, roomId, (p) => shell.setLoadingProgress(p));
       const debug = new URLSearchParams(location.search).get('debug');
       if (debug) showDebugView(debug);
+      const next = nextRoomId(roomId);
+      if (next !== roomId) prefetchId = setTimeout(() => prefetchRoom(next), PREFETCH_DELAY_MS);
     }
+    shell.setRoomTitle(room.title);
+    shell.showScreen('start');
+  }
+
+  /** The room after this one in the list, the most likely next choice. */
+  function nextRoomId(roomId) {
+    const index = roomChoices.findIndex((r) => r.id === roomId);
+    return roomChoices[(index + 1) % roomChoices.length].id;
+  }
+
+  /** @param {import('./core/exercise.js').Activity} chosen */
+  function start(chosen) {
+    activity = chosen;
     startRound();
   }
 
@@ -96,7 +127,7 @@ export function createApp({ game, root, roomId = 'kitchen' }) {
   function startRound() {
     stopRound();
     const rng = createRng(seed ?? randomSeed());
-    session = createSession({ roomId, exercise: EXERCISES[activity](room, rng) });
+    session = createSession({ roomId: room.id, exercise: EXERCISES[activity](room, rng) });
     const label = (id) => room.byId.get(id).label;
 
     unsubscribe = [
@@ -140,7 +171,8 @@ export function createApp({ game, root, roomId = 'kitchen' }) {
     session.start();
   }
 
-  shell.showScreen('start');
+  shell.showRooms(roomChoices);
+  shell.showScreen('rooms');
 
   return {
     shell,
@@ -152,6 +184,9 @@ export function createApp({ game, root, roomId = 'kitchen' }) {
     },
     get layout() {
       return roomView?.layout ?? null;
+    },
+    get roomId() {
+      return roomView ? room.id : null;
     },
     get scene() {
       return roomView?.scene ?? null;

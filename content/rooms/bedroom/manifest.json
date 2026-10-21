@@ -1,0 +1,17 @@
+{
+  "id": "bedroom",
+  "title": "Bedroom",
+  "objects": [
+    { "id": "bed", "difficulty": 1 },
+    { "id": "window", "difficulty": 1 },
+    { "id": "chair", "difficulty": 1 },
+    { "id": "lamp", "difficulty": 1 },
+    { "id": "book", "difficulty": 1 },
+    { "id": "desk", "difficulty": 2 },
+    { "id": "pillow", "difficulty": 2 },
+    { "id": "clock", "difficulty": 2 },
+    { "id": "rug", "difficulty": 2 },
+    { "id": "wardrobe", "difficulty": 3 },
+    { "id": "teddy-bear", "difficulty": 2 }
+  ]
+}
