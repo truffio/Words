@@ -14,16 +14,34 @@ export function installTestBridge(app, game) {
       app.setSeed(seed);
     },
 
-    /** Current screen, challenge, and score. */
+    /**
+     * Keeps feedback on screen for `ms` before the next challenge (null: the normal
+     * delays), so slow machines can check it before it is cleared.
+     * @param {number | null} ms
+     */
+    setNextDelay(ms) {
+      app.setNextDelay(ms);
+    },
+
+    /** Current screen, activity, challenge, and score. */
     get state() {
       const challenge = app.session?.challenge ?? null;
       return {
         screen: app.shell.screen,
+        activity: app.session?.activity ?? null,
         challengeNumber: challenge?.number ?? 0,
         challenge: challenge?.objectId ?? null,
+        choices: challenge?.choices ?? null,
+        highlighted: app.scene?.highlighted ?? null,
         awaitingAnswer: app.session?.awaitingAnswer ?? false,
         score: app.session?.score() ?? null,
       };
+    },
+
+    /** An object's words: label and accepted spellings. */
+    word(objectId) {
+      const object = app.room?.byId.get(objectId);
+      return object ? { label: object.label, accepted: object.accepted } : null;
     },
 
     /** Each instance's tap point in page (CSS pixel) coordinates. */

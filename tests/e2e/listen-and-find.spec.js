@@ -1,14 +1,21 @@
 import { expect, test } from '@playwright/test';
 
-/** Opens the game with a fixed seed and starts a round in the kitchen. */
-async function startRound(page, seed = 42) {
+/**
+ * Opens the game with a fixed seed and starts a round in the kitchen.
+ * `nextDelay` keeps feedback on screen longer, for tests that check it after an answer.
+ */
+async function startRound(page, seed = 42, nextDelay = null) {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   await page.waitForFunction(() => window.__wordsTest);
   await page.evaluate((s) => window.__wordsTest.setSeed(s), seed);
-  await page.getByRole('button', { name: 'Start' }).click();
+  await page.evaluate((ms) => window.__wordsTest.setNextDelay(ms), nextDelay);
+  await page.getByRole('button', { name: 'Listen and find' }).click();
   await page.waitForFunction(() => window.__wordsTest.state.awaitingAnswer);
 }
+
+/** Feedback time for tests that check feedback after a challenge ends. */
+const FEEDBACK_MS = 5000;
 
 const state = (page) => page.evaluate(() => window.__wordsTest.state);
 const tapPoints = (page) => page.evaluate(() => window.__wordsTest.tapPoints());
@@ -33,7 +40,7 @@ async function clickWrongObject(page, objectId) {
 }
 
 test('a correct answer scores, a wrong answer asks to try again', async ({ page }) => {
-  await startRound(page);
+  await startRound(page, 42, FEEDBACK_MS);
   const score = page.getByTestId('score');
   const feedback = page.getByTestId('feedback');
   const prompt = page.getByTestId('prompt');
@@ -61,7 +68,7 @@ test('a correct answer scores, a wrong answer asks to try again', async ({ page 
 });
 
 test('two wrong answers reveal the object', async ({ page }) => {
-  await startRound(page);
+  await startRound(page, 42, FEEDBACK_MS);
   const target = (await state(page)).challenge;
 
   await clickWrongObject(page, target);

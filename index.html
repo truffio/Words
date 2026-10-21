@@ -10,6 +10,21 @@
       <aside id="hud">
         <p id="prompt" data-testid="prompt" aria-live="polite"></p>
         <p id="feedback" data-testid="feedback" aria-live="polite"></p>
+        <div id="choices" class="choices" data-for="lookAndIdentify" data-testid="choices"></div>
+        <form id="spelling" class="spelling" data-for="recallAndSpell" autocomplete="off">
+          <label for="spelling-input" class="visually-hidden">Type the word</label>
+          <input
+            id="spelling-input"
+            data-testid="spelling-input"
+            type="text"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            enterkeyhint="done"
+          />
+          <button type="submit" id="check-button">Check</button>
+        </form>
         <div class="stats">
           <div class="stat">
             <span class="stat-label">Correct</span>
@@ -27,8 +42,30 @@
       <section id="start-screen" class="overlay" data-for="start">
         <div class="card">
           <h1>Words</h1>
-          <p>Find the things in the room!</p>
-          <button type="button" id="start-button">Start</button>
+          <p>What do you want to play?</p>
+          <div class="activities">
+            <button type="button" class="activity" data-activity="listenAndFind">
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M15 20a11 11 0 0 1 22 0c0 7-6 8-6 14a6 6 0 0 1-11 3" />
+                <path d="M21 20a5 5 0 0 1 10 0c0 3-3 4-3 6" />
+              </svg>
+              <span>Listen and find</span>
+            </button>
+            <button type="button" class="activity" data-activity="lookAndIdentify">
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M4 24s7-12 20-12 20 12 20 12-7 12-20 12S4 24 4 24z" />
+                <circle cx="24" cy="24" r="6" />
+              </svg>
+              <span>Look and identify</span>
+            </button>
+            <button type="button" class="activity" data-activity="recallAndSpell">
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M10 38l3-10 20-20 7 7-20 20-10 3z" />
+                <path d="M28 13l7 7" />
+              </svg>
+              <span>Recall and spell</span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -41,7 +78,12 @@
           <h2>Well done!</h2>
           <p id="summary-text" data-testid="summary"></p>
           <p id="summary-time"></p>
-          <button type="button" id="play-again-button">Play again</button>
+          <div class="summary-buttons">
+            <button type="button" id="play-again-button">Play again</button>
+            <button type="button" id="change-activity-button" class="secondary">
+              Change activity
+            </button>
+          </div>
         </div>
       </section>
     </div>

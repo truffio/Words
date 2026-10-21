@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createListenAndFind } from '../../src/core/exercise.js';
+import { createListenAndFind, createRecallAndSpell } from '../../src/core/exercise.js';
 import { createRng } from '../../src/core/rng.js';
 import { createSession } from '../../src/core/session.js';
 
@@ -108,5 +108,20 @@ describe('createSession', () => {
     off();
     session.start();
     expect(seen).toHaveLength(0);
+  });
+});
+
+describe('createSession with typed answers', () => {
+  it('passes the answer through to the exercise and reports its activity', () => {
+    const exercise = createRecallAndSpell({
+      objects: [{ id: 'stove', label: 'stove', accepted: ['stove'] }],
+      rng: createRng(1),
+      roundLength: 1,
+    });
+    const session = createSession({ roomId: 'kitchen', exercise });
+    expect(session.activity).toBe('recallAndSpell');
+    session.start();
+    expect(session.answer(' Stove ').outcome).toBe('correct');
+    expect(session.score()).toMatchObject({ correct: 1, attempted: 1 });
   });
 });

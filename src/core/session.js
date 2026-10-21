@@ -1,7 +1,7 @@
 import { createEmitter } from './events.js';
 
 /**
- * A play session for one round in one room, held in memory only.
+ * A play session for one round of one activity in one room, held in memory only.
  *
  * Events:
  * - `challengeStarted` { challenge, score }
@@ -15,7 +15,7 @@ import { createEmitter } from './events.js';
 /**
  * @param {object} options
  * @param {string} options.roomId
- * @param {ReturnType<typeof import('./exercise.js').createListenAndFind>} options.exercise
+ * @param {import('./exercise.js').Exercise} options.exercise
  * @param {() => number} [options.now] clock in milliseconds
  */
 export function createSession({ roomId, exercise, now = Date.now }) {
@@ -44,6 +44,7 @@ export function createSession({ roomId, exercise, now = Date.now }) {
 
   return {
     roomId,
+    activity: exercise.activity,
     on: emitter.on,
     score,
 
@@ -68,11 +69,11 @@ export function createSession({ roomId, exercise, now = Date.now }) {
     },
 
     /**
-     * @param {string} objectId the object the child chose
+     * @param {string} answer the object the child chose, or the text they typed
      * @returns {import('./exercise.js').AnswerResult}
      */
-    answer(objectId) {
-      const result = exercise.answer(objectId);
+    answer(answer) {
+      const result = exercise.answer(answer);
       if (result.done) {
         attempted++;
         if (result.outcome === 'correct') correct++;
