@@ -34,6 +34,8 @@ const EXERCISES = {
 export function createApp({ game, root, roomId = 'kitchen' }) {
   /** @type {number | null} fixed seed (tests), or null for a random one each round */
   let seed = null;
+  /** @type {number | null} fixed feedback time (tests), or null for NEXT_DELAY_MS */
+  let nextDelay = null;
   let room = null;
   let roomView = null;
   /** @type {import('./core/exercise.js').Activity} */
@@ -116,7 +118,8 @@ export function createApp({ game, root, roomId = 'kitchen' }) {
         if (activity === 'lookAndIdentify') shell.markChoice(result);
         if (activity === 'recallAndSpell')
           shell.markSpelling(result.outcome, label(result.objectId));
-        if (result.done) nextId = setTimeout(() => session.next(), NEXT_DELAY_MS[result.outcome]);
+        if (result.done)
+          nextId = setTimeout(() => session.next(), nextDelay ?? NEXT_DELAY_MS[result.outcome]);
       }),
       session.on('roundEnded', ({ score }) => {
         clearInterval(timerId);
@@ -156,6 +159,10 @@ export function createApp({ game, root, roomId = 'kitchen' }) {
     /** @param {number | null} value fixed seed for the next rounds */
     setSeed(value) {
       seed = value;
+    },
+    /** @param {number | null} ms fixed feedback time before the next challenge */
+    setNextDelay(ms) {
+      nextDelay = ms;
     },
   };
 }

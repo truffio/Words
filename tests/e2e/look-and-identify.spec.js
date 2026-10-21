@@ -1,14 +1,21 @@
 import { expect, test } from '@playwright/test';
 
-/** Opens the game with a fixed seed and starts a Look and identify round in the kitchen. */
-async function startRound(page, seed = 42) {
+/**
+ * Opens the game with a fixed seed and starts a Look and identify round in the kitchen.
+ * `nextDelay` keeps feedback on screen longer, for tests that check it after an answer.
+ */
+async function startRound(page, seed = 42, nextDelay = null) {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   await page.waitForFunction(() => window.__wordsTest);
   await page.evaluate((s) => window.__wordsTest.setSeed(s), seed);
+  await page.evaluate((ms) => window.__wordsTest.setNextDelay(ms), nextDelay);
   await page.getByRole('button', { name: 'Look and identify' }).click();
   await page.waitForFunction(() => window.__wordsTest.state.awaitingAnswer);
 }
+
+/** Feedback time for tests that check feedback after a challenge ends. */
+const FEEDBACK_MS = 5000;
 
 const state = (page) => page.evaluate(() => window.__wordsTest.state);
 const label = (page, id) => page.evaluate((i) => window.__wordsTest.word(i).label, id);
@@ -35,7 +42,7 @@ async function wrongChoices(page) {
 }
 
 test('the target glows and offers word buttons; the right word scores', async ({ page }) => {
-  await startRound(page);
+  await startRound(page, 42, FEEDBACK_MS);
   const { challenge, choices, highlighted } = await state(page);
 
   await expect(page.getByTestId('prompt')).toHaveText('What is this?');
@@ -79,7 +86,7 @@ test('a wrong word asks to try again and is crossed out', async ({ page }) => {
 });
 
 test('two wrong words reveal the right one', async ({ page }) => {
-  await startRound(page);
+  await startRound(page, 42, FEEDBACK_MS);
   const { challenge } = await state(page);
   const [first, second] = await wrongChoices(page);
 

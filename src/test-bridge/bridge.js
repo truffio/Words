@@ -14,6 +14,15 @@ export function installTestBridge(app, game) {
       app.setSeed(seed);
     },
 
+    /**
+     * Keeps feedback on screen for `ms` before the next challenge (null: the normal
+     * delays), so slow machines can check it before it is cleared.
+     * @param {number | null} ms
+     */
+    setNextDelay(ms) {
+      app.setNextDelay(ms);
+    },
+
     /** Current screen, activity, challenge, and score. */
     get state() {
       const challenge = app.session?.challenge ?? null;
