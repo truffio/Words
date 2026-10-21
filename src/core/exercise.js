@@ -7,14 +7,14 @@
  * - Recall and spell: an object glows, the child types its name.
  *
  * Rules (TECHNICAL.md §4, proposed gameplay rules):
- * - A round has `roundLength` challenges drawn from the eligible objects. No object
+ * - A round has `roundLength` challenges drawn from the eligible objects; by default one
+ *   per object, so a round goes through every object of the room once. No object
  *   repeats while unused objects remain, and never twice in a row.
  * - A wrong answer gives another try; after `maxWrongAttempts` wrong answers the
  *   answer is revealed and the challenge ends.
  * - A challenge counts as correct when it ends without a reveal.
  */
 
-export const DEFAULT_ROUND_LENGTH = 10;
 export const DEFAULT_MAX_WRONG_ATTEMPTS = 2;
 export const DEFAULT_CHOICE_COUNT = 4;
 
@@ -34,7 +34,9 @@ export const DEFAULT_CHOICE_COUNT = 4;
  * @typedef {object} AnswerResult
  * @property {Outcome} outcome
  * @property {string} objectId the target object
- * @property {string} [answeredId] the object the child chose (tap or word button)
+ * @property {string} [answeredId] the object the child chose (tap or word button); for a
+ *   tap on shared pixels, the target if it was there, otherwise the most specific object
+ * @property {string[]} [answeredIds] Listen and find: every object at the tapped point
  * @property {string} [answeredText] the text the child typed (spelling)
  * @property {boolean} done whether the challenge has ended
  */
@@ -45,7 +47,7 @@ export const DEFAULT_CHOICE_COUNT = 4;
  * @property {number} roundLength
  * @property {Challenge | null} current
  * @property {() => Challenge | null} next
- * @property {(answer: string) => AnswerResult} answer
+ * @property {(answer: string | string[]) => AnswerResult} answer
  */
 
 /**
@@ -64,8 +66,8 @@ export function normalizeAnswer(text) {
  * @param {import('./rng.js').Rng} options.rng
  * @param {number} options.roundLength
  * @param {number} options.maxWrongAttempts
- * @param {(challenge: Challenge, answer: string) => boolean} options.isCorrect
- * @param {(answer: string) => Partial<AnswerResult>} options.describeAnswer
+ * @param {(challenge: Challenge, answer: any) => boolean} options.isCorrect
+ * @param {(answer: any, challenge: Challenge) => Partial<AnswerResult>} options.describeAnswer
  * @param {(objectId: string) => Partial<Challenge>} [options.extend] extra challenge fields
  * @returns {Exercise}
  */
@@ -128,7 +130,8 @@ function createRound({
 
     /**
      * Evaluates the child's answer to the current challenge.
-     * @param {string} answer an object ID, or typed text for spelling
+     * @param {string | string[]} answer an object ID, the object IDs at a tapped point
+     *   (Listen and find), or typed text for spelling
      * @returns {AnswerResult}
      */
     answer(answer) {
@@ -144,23 +147,30 @@ function createRound({
         outcome = current.wrongAttempts >= maxWrongAttempts ? 'reveal' : 'tryAgain';
       }
       current.done = outcome !== 'tryAgain';
-      return { outcome, objectId: current.objectId, ...describeAnswer(answer), done: current.done };
+      return {
+        outcome,
+        objectId: current.objectId,
+        ...describeAnswer(answer, current),
+        done: current.done,
+      };
     },
   };
 }
 
 /**
- * Listen and find: the answer is the ID of the object the child tapped.
+ * Listen and find: the answer is the object the child tapped, or every object at the
+ * tapped point when objects share pixels (a stereo system and its speakers), the most
+ * specific first. It is right if the target is among them.
  * @param {object} options
  * @param {string[]} options.objectIds eligible object IDs (at least one)
  * @param {import('./rng.js').Rng} options.rng
- * @param {number} [options.roundLength]
+ * @param {number} [options.roundLength] challenges per round (default: one per object)
  * @param {number} [options.maxWrongAttempts]
  */
 export function createListenAndFind({
   objectIds,
   rng,
-  roundLength = DEFAULT_ROUND_LENGTH,
+  roundLength = objectIds.length,
   maxWrongAttempts = DEFAULT_MAX_WRONG_ATTEMPTS,
 }) {
   if (objectIds.length === 0) {
@@ -172,8 +182,12 @@ export function createListenAndFind({
     rng,
     roundLength,
     maxWrongAttempts,
-    isCorrect: (challenge, answeredId) => answeredId === challenge.objectId,
-    describeAnswer: (answeredId) => ({ answeredId }),
+    isCorrect: (challenge, answer) => [answer].flat().includes(challenge.objectId),
+    describeAnswer: (answer, challenge) => {
+      const answeredIds = [answer].flat();
+      const hit = answeredIds.includes(challenge.objectId);
+      return { answeredId: hit ? challenge.objectId : answeredIds[0], answeredIds };
+    },
   });
 }
 
@@ -182,21 +196,25 @@ export function createListenAndFind({
  * same room, in shuffled order; the answer is the ID of the chosen word.
  *
  * Distractors never share an accepted spelling with the target (so two buttons can
- * never both be right) and never repeat a word already offered.
+ * never both be right), are never a whole or a part of the target (with a speaker
+ * glowing, "stereo system" would be a wrong answer that is really right), and never
+ * repeat a word already offered.
  * @param {object} options
  * @param {{ id: string, label: string, accepted: string[] }[]} options.objects the room's objects
+ * @param {[string, string][]} [options.parts] whole/part pairs of object IDs (layout.json)
  * @param {string[]} [options.objectIds] eligible targets (default: all objects)
  * @param {import('./rng.js').Rng} options.rng
  * @param {number} [options.choiceCount] words per challenge, distractors included
- * @param {number} [options.roundLength]
+ * @param {number} [options.roundLength] challenges per round (default: one per target)
  * @param {number} [options.maxWrongAttempts]
  */
 export function createLookAndIdentify({
   objects,
+  parts = [],
   objectIds = objects.map((o) => o.id),
   rng,
   choiceCount = DEFAULT_CHOICE_COUNT,
-  roundLength = DEFAULT_ROUND_LENGTH,
+  roundLength = objectIds.length,
   maxWrongAttempts = DEFAULT_MAX_WRONG_ATTEMPTS,
 }) {
   if (objectIds.length === 0) {
@@ -204,13 +222,17 @@ export function createLookAndIdentify({
   }
   const byId = new Map(objects.map((o) => [o.id, o]));
   const spellings = (o) => new Set([o.label, ...o.accepted].map(normalizeAnswer));
+  const related = new Set(parts.flatMap(([a, b]) => [`${a}|${b}`, `${b}|${a}`]));
 
   /** Distractor candidates for each target, computed once. */
   const candidates = new Map(
     objectIds.map((id) => {
       const target = spellings(byId.get(id));
       const others = objects.filter(
-        (o) => o.id !== id && ![...spellings(o)].some((s) => target.has(s)),
+        (o) =>
+          o.id !== id &&
+          !related.has(`${id}|${o.id}`) &&
+          ![...spellings(o)].some((s) => target.has(s)),
       );
       if (others.length === 0) {
         throw new Error(`Look and identify has no distractor for "${id}".`);
@@ -251,14 +273,14 @@ export function createLookAndIdentify({
  * @param {{ id: string, label: string, accepted: string[] }[]} options.objects the room's objects
  * @param {string[]} [options.objectIds] eligible targets (default: all objects)
  * @param {import('./rng.js').Rng} options.rng
- * @param {number} [options.roundLength]
+ * @param {number} [options.roundLength] challenges per round (default: one per target)
  * @param {number} [options.maxWrongAttempts]
  */
 export function createRecallAndSpell({
   objects,
   objectIds = objects.map((o) => o.id),
   rng,
-  roundLength = DEFAULT_ROUND_LENGTH,
+  roundLength = objectIds.length,
   maxWrongAttempts = DEFAULT_MAX_WRONG_ATTEMPTS,
 }) {
   if (objectIds.length === 0) {

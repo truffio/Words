@@ -49,14 +49,18 @@ test('choose a room, play, change room, and play in the new room', async ({ page
   await chooseRoom(page, 'Bedroom');
   await page.getByRole('button', { name: 'Listen and find' }).click();
   const bedroom = objectsOf('bedroom');
-  for (let n = 1; n <= 10; n++) {
+  // A round asks for every object of the room once.
+  expect((await state(page)).roundLength).toBe(bedroom.length);
+  for (let n = 1; n <= bedroom.length; n++) {
     await waitForChallenge(page, n);
     const { room, challenge } = await state(page);
     expect(room).toBe('bedroom');
     expect(bedroom).toContain(challenge);
     await clickTarget(page);
   }
-  await expect(page.getByTestId('summary')).toHaveText('You found 10 out of 10.');
+  await expect(page.getByTestId('summary')).toHaveText(
+    `You found ${bedroom.length} out of ${bedroom.length}.`,
+  );
 
   await page.getByRole('button', { name: 'Change room' }).click();
   await chooseRoom(page, 'Bathroom');

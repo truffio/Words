@@ -107,12 +107,15 @@ test('a full round ends with a summary that offers to change activity', async ({
   test.setTimeout(120_000);
   await startRound(page, 42, FAST_MS);
 
-  for (let n = 1; n <= 10; n++) {
+  const { roundLength } = await state(page);
+  for (let n = 1; n <= roundLength; n++) {
     await waitForChallenge(page, n);
     await (await choice(page, (await state(page)).challenge)).click();
   }
 
-  await expect(page.getByTestId('summary')).toHaveText('You named 10 out of 10.');
+  await expect(page.getByTestId('summary')).toHaveText(
+    `You named ${roundLength} out of ${roundLength}.`,
+  );
   await page.getByRole('button', { name: 'Change activity' }).click();
   await page.getByRole('button', { name: 'Recall and spell' }).click();
   await waitForChallenge(page, 1);

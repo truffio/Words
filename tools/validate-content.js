@@ -4,8 +4,8 @@
  * audio references, and hit regions (overlaps, minimum tap size).
  *
  * Reports every problem at once and exits with an error if there are any. Warnings
- * (resolved overlaps, small regions, unused files) are listed but do not fail. Draft
- * rooms are checked too, but their problems are only warnings.
+ * (small regions, unused files) are listed but do not fail; notes (overlapping masks)
+ * are information. Draft rooms are checked too, but their problems are only warnings.
  *
  * Usage: node tools/validate-content.js
  */
@@ -18,17 +18,20 @@ async function main() {
     contentDir: path.resolve('content'),
     publicDir: path.resolve('public'),
   });
+  const notes = [];
   for (const room of rooms) {
     const analysis = analyseRoom(room);
     problems.push(...analysis.problems);
     warnings.push(...analysis.warnings);
+    notes.push(...analysis.notes);
   }
   for (const room of drafts) {
     const analysis = analyseRoom(room);
     warnings.push(...[...analysis.problems, ...analysis.warnings].map((w) => `${w} (draft)`));
+    notes.push(...analysis.notes.map((n) => `${n} (draft)`));
   }
 
-  const ok = report('validate:content', { problems, warnings });
+  const ok = report('validate:content', { problems, warnings, notes });
   const draftNote = draftIds.length ? `; draft(s) not built: ${draftIds.join(', ')}` : '';
   if (ok) console.log(`validate:content: ${rooms.length} room(s) OK${draftNote}`);
   process.exit(ok ? 0 : 1);

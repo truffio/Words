@@ -39,7 +39,8 @@ async function waitForChallenge(page, n) {
 async function startRoundWithVariant(page) {
   await startRound(page, 42, FAST_MS);
   const input = page.getByTestId('spelling-input');
-  for (let n = 1; n <= 10; n++) {
+  const { roundLength } = await state(page);
+  for (let n = 1; n <= roundLength; n++) {
     await waitForChallenge(page, n);
     const { label, accepted } = await word(page, (await state(page)).challenge);
     const variant = accepted.find((a) => a !== label);

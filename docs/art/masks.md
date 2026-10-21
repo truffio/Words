@@ -38,7 +38,8 @@ Other objects' masks are shown in faint blue, so you can see what is still missi
 
 ### Tips
 
-- **Cover the visible object only.** Where objects overlap (a cup on a table), it is fine for both masks to include the overlap: `build:rooms` gives contested pixels to the smaller object, or to the one with the higher `depth` in the manifest.
+- **Cover the visible object only.** Where objects overlap, it is fine for both masks to include the overlap. Overlapping objects **share** those pixels: a tap there counts for both. That is right for a whole and its parts (a stereo system and its speakers, a lamp and its lampshade): mask the whole with its parts, and each part on its own.
+- **One object in front of another** (a cup on a table) only needs a `depth` in the manifest when a tap on it must not count for the object behind: the higher `depth` keeps the overlap alone.
 - **Thin parts** (chair legs) are easier with an extra click on each part. They do not need to be perfect: the build adds 8 px of padding around every object.
 - **Small objects** are grown to a comfortable tap size automatically.
 - Speed: on a recent laptop each click takes well under a second; with WebGPU (Chrome, Edge) it is faster than with the WebAssembly fallback.
@@ -51,8 +52,8 @@ Other objects' masks are shown in faint blue, so you can see what is still missi
 npm run build:rooms
 ```
 
-- The build lists problems (wrong names or sizes, objects without masks) and warnings (overlaps and their winner, objects too small to pad).
-- Open **`reports/rooms/<room>-debug-hits.png`**: every final clickable area in its own colour, labelled, with its tap point. Check that there are no gaps, no areas assigned to the wrong object, and that small objects are padded.
+- The build lists problems (wrong names or sizes, objects without masks), warnings (objects too small to pad), and notes (shared pixels, objects in front, wholes and their parts).
+- Open **`reports/rooms/<room>-debug-hits.png`**: every final clickable area in its own colour, labelled, with its tap point; shared areas are striped in the colours of every object there. Check that there are no gaps, no areas assigned to the wrong object, and that small objects are padded.
 - In the game, `npm run dev` then `http://localhost:8080/?debug=hits` shows the same areas live; click every object to check.
 
 ---

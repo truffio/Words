@@ -6,10 +6,11 @@
  *   thumbnail.webp    a small copy of the painting for the room selection screen
  *   objects.json      Phaser multi-atlas of object cut-outs and their white glow halos,
  *                     with pages objects-<n>.webp
- *   hitmap.bin        instance index per hit-map pixel (half resolution), run-length
- *                     encoded, after overlap resolution and padding
+ *   hitmap.bin        cell per hit-map pixel (half resolution), run-length encoded,
+ *                     after padding; a cell is a set of instances (shared pixels)
  *   layout.json       instances: objectId, bounds, hit bounds, tap point, cut-out and
- *                     glow frames
+ *                     glow frames; the instances of each hit-map cell (`hitSets`); and
+ *                     the room's whole/part object pairs (`parts`)
  *
  * and a review image, reports/rooms/<room>-debug-hits.png, showing every hit region.
  *
@@ -67,10 +68,13 @@ const glowFrame = (name) => `${name}:glow`;
 
 async function writeAtlas(room, analysis, rgba, outDir) {
   const args = (i) => [analysis.index, LOGICAL_WIDTH, LOGICAL_HEIGHT, i + 1, analysis.bounds[i]];
-  const cutouts = room.masks.map((mask, i) => ({ name: mask.name, ...cutout(rgba, ...args(i)) }));
+  const cutouts = room.masks.map((mask, i) => ({
+    name: mask.name,
+    ...cutout(rgba, ...args(i), analysis.sets),
+  }));
   const halos = room.masks.map((mask, i) => ({
     name: glowFrame(mask.name),
-    ...glowHalo(...args(i), GLOW_RADIUS),
+    ...glowHalo(...args(i), GLOW_RADIUS, analysis.sets),
   }));
   const pieces = [...cutouts, ...halos];
   const { pages, placements } = packShelves(pieces);
@@ -134,7 +138,9 @@ async function writeAtlas(room, analysis, rgba, outDir) {
 async function writeDebugHits(room, analysis, layout) {
   const { hitmap } = analysis;
   const overlay = await sharp(
-    Buffer.from(regionOverlay(hitmap.pixels, hitmap.width, hitmap.height, colourOf).buffer),
+    Buffer.from(
+      regionOverlay(hitmap.pixels, hitmap.width, hitmap.height, colourOf, analysis.sets).buffer,
+    ),
     {
       raw: { width: hitmap.width, height: hitmap.height, channels: 4 },
     },
@@ -167,7 +173,8 @@ async function writeDebugHits(room, analysis, layout) {
 async function buildRoom(room) {
   const analysis = analyseRoom(room);
   const warnings = [...analysis.warnings];
-  if (analysis.problems.length) return { problems: analysis.problems, warnings };
+  const { notes } = analysis;
+  if (analysis.problems.length) return { problems: analysis.problems, warnings, notes };
 
   const outDir = path.join(OUTPUT_DIR, room.id);
   await mkdir(outDir, { recursive: true });
@@ -225,6 +232,8 @@ async function buildRoom(room) {
         glow: { frame: glowFrame(mask.name), x: halo.x, y: halo.y },
       };
     }),
+    hitSets: analysis.sets,
+    parts: analysis.parts,
   };
   await writeFile(path.join(outDir, 'layout.json'), `${JSON.stringify(layout, null, 2)}\n`);
 
@@ -243,7 +252,7 @@ async function buildRoom(room) {
     `atlas ${kb(atlas.bytes)} on ${atlas.pages.length} page(s) ` +
     `(${atlas.pages.map((p) => `${p.width}×${p.height}`).join(', ')}), hitmap ${kb(hitmapBytes.byteLength)}; ` +
     `review: ${path.relative('.', debugFile)}`;
-  return { problems: [], warnings, summary };
+  return { problems: [], warnings, notes, summary };
 }
 
 async function main() {
@@ -253,6 +262,7 @@ async function main() {
   });
   const problems = [...content.problems];
   const warnings = [...content.warnings];
+  const notes = [];
   const summaries = [];
 
   if (!problems.length) {
@@ -262,11 +272,12 @@ async function main() {
       const result = await buildRoom(room);
       problems.push(...result.problems);
       warnings.push(...result.warnings);
+      notes.push(...result.notes);
       if (result.summary) summaries.push(result.summary);
     }
   }
 
-  const ok = report('build:rooms', { problems, warnings });
+  const ok = report('build:rooms', { problems, warnings, notes });
   for (const summary of summaries) console.log(`build:rooms: ${summary}`);
   for (const id of content.draftIds) console.log(`build:rooms: ${id}: draft, skipped`);
   process.exit(ok ? 0 : 1);

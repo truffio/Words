@@ -22,7 +22,7 @@
     { "id": "television", "difficulty": 1 },
     { "id": "wall-unit", "difficulty": 3 },
     { "id": "stereo-system", "difficulty": 3 },
-    { "id": "speaker", "difficulty": 2, "depth": 1 },
+    { "id": "speaker", "difficulty": 2 },
     { "id": "bookcase", "difficulty": 2 },
     { "id": "curtains", "difficulty": 2 },
     { "id": "cushion", "difficulty": 2 },

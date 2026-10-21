@@ -48,6 +48,8 @@ export function createSession({ roomId, exercise, now = Date.now }) {
   return {
     roomId,
     activity: exercise.activity,
+    /** Challenges in the round. */
+    roundLength: exercise.roundLength,
     on: emitter.on,
     score,
 
@@ -88,7 +90,8 @@ export function createSession({ roomId, exercise, now = Date.now }) {
     },
 
     /**
-     * @param {string} answer the object the child chose, or the text they typed
+     * @param {string | string[]} answer the object the child chose (or every object at
+     *   the tapped point), or the text they typed
      * @returns {import('./exercise.js').AnswerResult}
      */
     answer(answer) {

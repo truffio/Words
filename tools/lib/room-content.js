@@ -33,6 +33,11 @@ export const HITMAP_FACTOR = 2;
 export const BASE_HIT_PADDING = 8;
 /** Minimum hit region size (logical px), about 44 pt on an iPad screen. */
 export const MIN_TAP_SIZE = 80;
+/**
+ * Two objects sharing at least this fraction of the smaller one's pixels are a whole
+ * and its part (a stereo system and its speaker); smaller shared areas are incidental.
+ */
+export const PART_SHARE = 0.5;
 
 const ROOM_FILES = new Set(['manifest.json', 'room.png', 'masks']);
 
@@ -243,31 +248,64 @@ export async function loadContent({ contentDir, publicDir }) {
 }
 
 /**
- * Resolves a room's hit regions: combines masks (overlaps settled by depth, then size),
- * builds the half-resolution hit map, and pads small and thin regions.
+ * Whole/part pairs of objects: objects whose masks share at least PART_SHARE of the
+ * smaller one's pixels, as [larger, smaller] object IDs. Which one is the part does not
+ * matter to the game (and two masks of about the same size cannot tell).
+ * @param {import('./room-build.js').Mask[]} masks
+ * @param {number[]} areas pixel count of each mask
+ * @param {import('./room-build.js').Overlap[]} overlaps
+ * @returns {[string, string][]}
+ */
+function wholesAndParts(masks, areas, overlaps) {
+  const byName = new Map(masks.map((mask, i) => [mask.name, { ...mask, area: areas[i] }]));
+  const pairs = new Map();
+  for (const o of overlaps) {
+    const [whole, part] = [byName.get(o.a), byName.get(o.b)].sort((x, y) => y.area - x.area);
+    if (o.front || whole.objectId === part.objectId || o.pixels < PART_SHARE * part.area) {
+      continue;
+    }
+    pairs.set(`${whole.objectId}|${part.objectId}`, [whole.objectId, part.objectId]);
+  }
+  return [...pairs.values()];
+}
+
+/**
+ * Resolves a room's hit regions: combines masks (overlapping masks share their pixels,
+ * unless one has a higher depth), builds the half-resolution hit map, and pads small
+ * and thin regions.
+ *
+ * Overlaps are reported as notes: they are expected (a whole and its parts, an object
+ * in front of another), but worth a look in the review image.
  * @param {RoomSource} room
  */
 export function analyseRoom(room) {
   const label = `room "${room.id}"`;
   const warnings = [];
+  const notes = [];
   const { masks } = room;
 
-  const { index, overlaps } = combineMasks(masks, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+  const { index, sets, areas, overlaps } = combineMasks(masks, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+  const parts = wholesAndParts(masks, areas, overlaps);
   for (const o of overlaps) {
-    warnings.push(
-      `${label}: masks "${o.a}" and "${o.b}" overlap on ${o.pixels} pixels; "${o.winner}" wins`,
-    );
+    if (o.front) {
+      const behind = o.front === o.a ? o.b : o.a;
+      notes.push(`${label}: "${o.front}" is in front of "${behind}" on ${o.pixels} pixels`);
+    } else {
+      notes.push(`${label}: "${o.a}" and "${o.b}" share ${o.pixels} pixels`);
+    }
   }
+  for (const [a, b] of parts) notes.push(`${label}: "${a}" and "${b}" are a whole and its part`);
 
-  const bounds = instanceBounds(index, LOGICAL_WIDTH, masks.length);
+  const bounds = instanceBounds(index, LOGICAL_WIDTH, masks.length, sets);
   const unpadded = downsample(index, LOGICAL_WIDTH, LOGICAL_HEIGHT, HITMAP_FACTOR);
-  const taps = tapPoints(unpadded.pixels, unpadded.width, unpadded.height, masks.length);
+  const taps = tapPoints(unpadded.pixels, unpadded.width, unpadded.height, masks.length, sets);
 
   const toHitmap = (logical) => Math.round(logical / HITMAP_FACTOR);
   const padded = padRegions(unpadded.pixels, unpadded.width, unpadded.height, masks.length, {
     basePad: toHitmap(BASE_HIT_PADDING),
     minSize: toHitmap(MIN_TAP_SIZE),
     extraPad: masks.map((m) => toHitmap(m.hitPadding)),
+    sets,
   });
   for (const i of padded.tooSmall) {
     warnings.push(
@@ -283,14 +321,17 @@ export function analyseRoom(room) {
     }
   });
 
-  const hitBounds = instanceBounds(padded.index, unpadded.width, masks.length);
+  const hitBounds = instanceBounds(padded.index, unpadded.width, masks.length, sets);
   return {
     index,
+    sets,
+    parts,
     bounds,
     taps,
     hitmap: { pixels: padded.index, width: unpadded.width, height: unpadded.height },
     hitBounds,
     warnings,
+    notes,
     problems,
   };
 }
