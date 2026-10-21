@@ -17,6 +17,8 @@ async function startRound(page, seed = 42, nextDelay = null) {
 
 /** Feedback time for tests that check feedback after a challenge ends. */
 const FEEDBACK_MS = 5000;
+/** Feedback time for tests that play many challenges and do not check feedback. */
+const FAST_MS = 100;
 
 const state = (page) => page.evaluate(() => window.__wordsTest.state);
 const label = (page, id) => page.evaluate((i) => window.__wordsTest.word(i).label, id);
@@ -103,7 +105,7 @@ test('two wrong words reveal the right one', async ({ page }) => {
 
 test('a full round ends with a summary that offers to change activity', async ({ page }) => {
   test.setTimeout(60_000);
-  await startRound(page);
+  await startRound(page, 42, FAST_MS);
 
   for (let n = 1; n <= 10; n++) {
     await waitForChallenge(page, n);

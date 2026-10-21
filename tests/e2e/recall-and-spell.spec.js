@@ -17,6 +17,8 @@ async function startRound(page, seed = 42, nextDelay = null) {
 
 /** Feedback time for tests that check feedback after a challenge ends. */
 const FEEDBACK_MS = 5000;
+/** Feedback time for tests that play many challenges and do not check feedback. */
+const FAST_MS = 100;
 
 const state = (page) => page.evaluate(() => window.__wordsTest.state);
 const word = (page, id) => page.evaluate((i) => window.__wordsTest.word(i), id);
@@ -29,15 +31,23 @@ async function waitForChallenge(page, n) {
   );
 }
 
-/** Starts rounds until the first challenge targets an object with a spelling variant. */
+/**
+ * Starts a round and answers challenges until one targets an object with a spelling
+ * variant (in the kitchen, refrigerator or cup; a round asks for every object).
+ * @returns {Promise<string>} the variant
+ */
 async function startRoundWithVariant(page) {
-  for (let seed = 1; seed < 200; seed++) {
-    await startRound(page, seed);
+  await startRound(page, 42, FAST_MS);
+  const input = page.getByTestId('spelling-input');
+  for (let n = 1; n <= 10; n++) {
+    await waitForChallenge(page, n);
     const { label, accepted } = await word(page, (await state(page)).challenge);
     const variant = accepted.find((a) => a !== label);
     if (variant) return variant;
+    await input.fill(label);
+    await input.press('Enter');
   }
-  throw new Error('No seed starts with a word that has a variant.');
+  throw new Error('No challenge in the round has a word with a variant.');
 }
 
 test('the target glows and a correct spelling scores, submitted with Enter', async ({ page }) => {
@@ -69,9 +79,10 @@ test('the target glows and a correct spelling scores, submitted with Enter', asy
 
 test('an accepted variant is correct', async ({ page }) => {
   const variant = await startRoundWithVariant(page);
+  const before = (await state(page)).score.correct;
   await page.getByTestId('spelling-input').fill(variant);
   await page.getByRole('button', { name: 'Check' }).click();
-  await expect(page.getByTestId('score')).toHaveText('1 / 1');
+  await expect.poll(async () => (await state(page)).score.correct).toBe(before + 1);
 });
 
 test('a wrong spelling asks to try again; an empty box is ignored', async ({ page }) => {

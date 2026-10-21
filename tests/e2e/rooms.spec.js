@@ -13,7 +13,11 @@ async function open(page) {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   await page.waitForFunction(() => window.__wordsTest);
-  await page.evaluate(() => window.__wordsTest.setSeed(42));
+  await page.evaluate(() => {
+    window.__wordsTest.setSeed(42);
+    // These tests play many challenges and do not check feedback.
+    window.__wordsTest.setNextDelay(100);
+  });
 }
 
 /** Chooses a room on the room screen and waits for its activities. */
