@@ -14,6 +14,13 @@ npm run masks        # opens http://localhost:8080/tools/mask-tool/
 
 The tool is not part of the game build; it only exists on the dev server.
 
+### Loading a Painting
+
+1. Pick the room, then **Load new painting…** and choose the image (PNG, JPEG, or WebP, any size).
+2. The tool saves it as `content/rooms/<room>/room.png` at **2048 × 1536**. An image that is not 4:3 is **cropped in the centre** to 4:3 (never stretched); the status line says when this happens, so check that no object was cut off.
+3. Existing masks are **kept** by default, which is right when the new painting has the objects in the same places (a retouched version). Tick **Delete this room's masks when loading** for a different painting.
+4. Smart select analyses the new painting (about 10 seconds), then you can make masks.
+
 ### Making a Mask
 
 1. **Pick the room** at the top of the panel. The object list shows which objects already have masks (✓) and which do not (in red).

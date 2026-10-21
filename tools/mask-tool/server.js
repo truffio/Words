@@ -4,6 +4,8 @@
  *
  *   GET    /__mask-tool/rooms
  *   GET    /__mask-tool/rooms/<room>/painting              room.png
+ *   PUT    /__mask-tool/rooms/<room>/painting[?clearMasks=1]  body: any image; resized
+ *                                                          (and cropped to 4:3) to room.png
  *   GET    /__mask-tool/rooms/<room>/masks/<name>          mask PNG
  *   PUT    /__mask-tool/rooms/<room>/masks/<name>          body: PNG
  *   POST   /__mask-tool/rooms/<room>/masks/<name>/rename?to=<new name>
@@ -17,9 +19,11 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../../src/core/display.js';
 import { parseMaskName } from '../lib/room-build.js';
+import { normalisePainting } from './painting.js';
 
 const ROOM_ID = /^[a-z]+(?:-[a-z]+)*$/;
-const MAX_BODY = 20 * 1024 * 1024;
+const MAX_MASK = 20 * 1024 * 1024;
+const MAX_PAINTING = 60 * 1024 * 1024;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -32,12 +36,12 @@ async function readJson(file) {
   return JSON.parse(await readFile(file, 'utf8'));
 }
 
-async function readBody(req) {
+async function readBody(req, limit) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY) throw new HttpError(413, 'Mask file is too large.');
+    if (size > limit) throw new HttpError(413, 'The file is too large.');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -142,7 +146,31 @@ function createApi(contentDir) {
     // names containing "@" (e.g. chair@1.png).
     async painting(roomId) {
       await manifestOf(roomId);
-      return readFile(path.join(roomsDir, roomId, 'room.png'));
+      try {
+        return await readFile(path.join(roomsDir, roomId, 'room.png'));
+      } catch {
+        throw new HttpError(404, `Room "${roomId}" has no painting yet.`);
+      }
+    },
+
+    /** Replaces the room's painting with any image, optionally deleting its masks. */
+    async replacePainting(roomId, image, clearMasks) {
+      await manifestOf(roomId);
+      let result;
+      try {
+        result = await normalisePainting(image);
+      } catch {
+        throw new HttpError(400, 'The file is not an image that can be read.');
+      }
+      await writeFile(path.join(roomsDir, roomId, 'room.png'), result.png);
+      let deleted = 0;
+      if (clearMasks) {
+        for (const name of await listMasks(roomId)) {
+          await rm(path.join(roomsDir, roomId, 'masks', `${name}.png`), { force: true });
+          deleted++;
+        }
+      }
+      return { original: result.original, cropped: result.cropped, deletedMasks: deleted };
     },
 
     async mask(roomId, name) {
@@ -187,14 +215,19 @@ export function maskToolServer({ contentDir = path.resolve('content') } = {}) {
           if (req.method === 'GET' && parts.length === 1 && parts[0] === 'rooms') {
             return send(200, await api.rooms());
           }
-          if (req.method === 'GET' && parts[0] === 'rooms' && parts[2] === 'painting') {
-            return sendPng(await api.painting(parts[1]));
+          if (parts[0] === 'rooms' && parts[2] === 'painting' && parts.length === 3) {
+            if (req.method === 'GET') return sendPng(await api.painting(parts[1]));
+            if (req.method === 'PUT') {
+              const image = await readBody(req, MAX_PAINTING);
+              const clearMasks = url.searchParams.get('clearMasks') === '1';
+              return send(200, await api.replacePainting(parts[1], image, clearMasks));
+            }
           }
           if (parts[0] === 'rooms' && parts[2] === 'masks' && parts.length >= 4) {
             const [, roomId, , name, action] = parts;
             if (req.method === 'GET' && !action) return sendPng(await api.mask(roomId, name));
             if (req.method === 'PUT' && !action) {
-              await api.save(roomId, name, await readBody(req));
+              await api.save(roomId, name, await readBody(req, MAX_MASK));
               return send(200, { saved: name });
             }
             if (req.method === 'POST' && action === 'rename') {

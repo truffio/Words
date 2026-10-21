@@ -156,7 +156,18 @@ async function loadRooms(selectId) {
 async function openRoom(roomId) {
   state.room = state.rooms.find((r) => r.id === roomId);
   setStatus(`Loading ${state.room.title}…`);
-  const { bitmap, data } = await loadImagePixels(`${API}/rooms/${roomId}/painting?t=${Date.now()}`);
+  let painting;
+  try {
+    painting = await loadImagePixels(`${API}/rooms/${roomId}/painting?t=${Date.now()}`);
+  } catch {
+    paintingCanvas.getContext('2d').clearRect(0, 0, W, H);
+    state.painting = null;
+    state.saved.clear();
+    selectInstance(null);
+    setStatus(`${state.room.title} has no painting yet: use “Load new painting…”.`);
+    return;
+  }
+  const { bitmap, data } = painting;
   if (bitmap.width !== W || bitmap.height !== H) {
     setStatus(`room.png is ${bitmap.width} × ${bitmap.height}; it must be ${W} × ${H}.`);
   }
@@ -165,6 +176,39 @@ async function openRoom(roomId) {
   await loadSavedMasks();
   selectInstance(null);
   encodedPainting().catch((error) => setStatus(`Could not start smart select: ${error.message}`));
+}
+
+/** Uploads an image as the room's new painting (resized and cropped to 4:3 by the server). */
+async function loadNewPainting(file) {
+  const room = state.room;
+  const clearMasks = /** @type {HTMLInputElement} */ ($('clear-masks')).checked;
+  const warning = clearMasks
+    ? `Replace the ${room.title} painting and delete its ${room.masks.length} mask(s)?`
+    : `Replace the ${room.title} painting? Its ${room.masks.length} mask(s) are kept; ` +
+      'they only fit if the objects are in the same places.';
+  if (!confirm(warning)) return;
+
+  try {
+    setStatus(`Uploading ${file.name}…`);
+    const result = await api(`/rooms/${room.id}/painting${clearMasks ? '?clearMasks=1' : ''}`, {
+      method: 'PUT',
+      body: file,
+    });
+    // The painting changed: its Segment Anything analysis must be redone.
+    encoded = null;
+    state.dirty = false;
+    await loadRooms(room.id);
+    await openRoom(room.id);
+    const { width, height } = result.original;
+    const notes = [
+      `Loaded ${file.name} (${width} × ${height})`,
+      result.cropped ? 'cropped to 4:3 and resized to 2048 × 1536' : 'resized to 2048 × 1536',
+      result.deletedMasks ? `${result.deletedMasks} mask(s) deleted` : null,
+    ];
+    setStatus(`${notes.filter(Boolean).join('; ')}. Analysing it for smart select…`);
+  } catch (error) {
+    setStatus(`Could not load the painting: ${error.message}`);
+  }
 }
 
 async function loadSavedMasks() {
@@ -219,6 +263,10 @@ function working() {
 
 /** @param {number} x @param {number} y @param {0 | 1} label */
 async function clickAt(x, y, label) {
+  if (!state.painting) {
+    setStatus('Load a painting first.');
+    return;
+  }
   if (!state.instance) {
     setStatus('Pick an object in the list first.');
     return;
@@ -395,6 +443,16 @@ $('room').addEventListener('change', (e) => {
   }
   state.dirty = false;
   openRoom(e.target.value);
+});
+
+$('load-painting').addEventListener('click', () => {
+  if (state.dirty && !confirm('Discard the unsaved changes to this mask?')) return;
+  $('painting-file').click();
+});
+$('painting-file').addEventListener('change', (e) => {
+  const [file] = e.target.files;
+  e.target.value = '';
+  if (file) loadNewPainting(file);
 });
 
 document.querySelectorAll('input[name="mode"]').forEach((input) =>

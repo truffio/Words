@@ -119,6 +119,10 @@ button:disabled {
   color: var(--accent);
 }
 
+.small {
+  font-size: 0.9rem;
+}
+
 .help {
   font-size: 0.9rem;
 }

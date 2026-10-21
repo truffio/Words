@@ -78,8 +78,8 @@ cropped objects, clutter, blurry, noisy texture
 2. **Generate** several images with the prompt template. Pick the one with the best overall layout and style, even if some objects are missing or wrong.
 3. **Fix with inpainting:** select the area where an object is missing or wrong and prompt only for that object, in the same style ("a cute kawaii cartoon toaster, isometric view, pastel colours, dark navy outline"). Repeat until every manifest object is present.
 4. **Check against the manifest:** every object present, recognisable, not hidden, not cropped, no text.
-5. **Upscale** to 2048 × 1536 if the tool generates smaller images (most tools offer an upscaler; keep the 4:3 ratio exactly).
-6. **Save** as `content/rooms/<room>/room.png`.
+5. **Upscale** if the tool generates small images (most tools offer an upscaler), ideally in 4:3.
+6. **Load it** in the mask tool with **Load new painting…**: it is saved as `content/rooms/<room>/room.png`, resized to 2048 × 1536, and centre-cropped to 4:3 if needed.
 7. **Make the masks** with the mask tool ([masks.md](masks.md)).
 
 ---

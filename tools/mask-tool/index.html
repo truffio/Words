@@ -15,6 +15,14 @@
         <select id="room"></select>
       </label>
 
+      <div class="row">
+        <button type="button" id="load-painting">Load new painting…</button>
+        <input id="painting-file" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+      </div>
+      <label class="row small">
+        <input id="clear-masks" type="checkbox" /> Delete this room's masks when loading
+      </label>
+
       <section>
         <h2>Objects</h2>
         <ul id="objects"></ul>
