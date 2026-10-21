@@ -48,7 +48,7 @@
 | **Browser tests** | Playwright | Gameplay interactions in desktop **Chromium** from M1; **WebKit with an iPad device profile** (closest to iPad Safari) added in M5. Screenshots on failure. |
 | **Continuous integration** | GitHub Actions | On push and pull request: lint, content validation, unit tests, room build, production build, end-to-end tests. |
 
-> **Deployment is deliberately outside the initial scope.** The build output is a static folder that any static host can serve later. Until then, the game is played from the Vite dev or preview server: in a browser on the development machine, and from M5 on the iPad over the local network.
+> **Deployment:** the build output is a static folder that any static host can serve. **GitHub Pages** publishes it from `main` (`.github/workflows/deploy.yml`, after content validation, unit tests, and the build) at https://truffio.github.io/Words/, over HTTPS, which the iPad also needs. During development, the game is played from the Vite dev or preview server: in a browser on the development machine, and from M5 on the iPad over the local network.
 
 > **Licensing to confirm before production:** the commercial-use terms of the chosen AI image generator and TTS provider, and the license of any segmentation tool used. Phaser and sharp are open source (MIT and Apache-2.0).
 
@@ -481,6 +481,10 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 ---
 
 ## Revision Notes
+
+**Revision 10: deployment**
+
+- GitHub Pages deployment from `main` added (§2); deployment is no longer out of scope.
 
 **Revision 9: mask tool and style guide**
 

@@ -39,6 +39,14 @@ Add `?debug=hits` to the URL (dev server only) to see each object's clickable ar
 
 CI runs lint, content validation, unit tests, build, and end-to-end tests on every push and pull request (`.github/workflows/ci.yml`).
 
+## Deployment
+
+Every push to `main` publishes the game to **https://truffio.github.io/Words/** with GitHub Pages (`.github/workflows/deploy.yml`). It can also be started by hand from the repository's **Actions** tab (*Deploy to GitHub Pages → Run workflow*).
+
+One-time setup: repository **Settings → Pages → Source: GitHub Actions**.
+
+The site is the static production build (`dist/`), without the test bridge or debug views. Any other static host works too: run `npm run build` and upload `dist/`.
+
 ## Project layout
 
 ```
