@@ -41,7 +41,7 @@
             "maximum": 3
           },
           "depth": {
-            "description": "Where masks overlap, the higher depth wins. Default 0; at equal depth the smaller object wins.",
+            "description": "Where masks overlap, the higher depth keeps the pixels alone (an object in front of another). Default 0; at equal depth overlapping objects share the pixels.",
             "type": "integer",
             "minimum": -100,
             "maximum": 100

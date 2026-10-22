@@ -1,4 +1,5 @@
-import { logicalToScreen } from '../core/hitmap.js';
+import { LOGICAL_WIDTH } from '../core/display.js';
+import { instancesAt, instancesOfCell, logicalToScreen } from '../core/hitmap.js';
 
 /**
  * Test-only bridge for Playwright, exposed as `window.__wordsTest`. Lets tests read the
@@ -33,6 +34,7 @@ export function installTestBridge(app, game) {
         paused: app.session?.paused ?? false,
         activity: app.session?.activity ?? null,
         challengeNumber: challenge?.number ?? 0,
+        roundLength: app.session?.roundLength ?? 0,
         challenge: challenge?.objectId ?? null,
         choices: challenge?.choices ?? null,
         highlighted: app.scene?.highlighted ?? null,
@@ -52,13 +54,47 @@ export function installTestBridge(app, game) {
       return game.textures.getTextureKeys();
     },
 
-    /** Each instance's tap point in page (CSS pixel) coordinates. */
+    /**
+     * Each instance's tap point in page (CSS pixel) coordinates, with every object found
+     * there (`objectIds`, the most specific first): objects may share pixels, so a tap on
+     * one can also count for another.
+     */
     tapPoints() {
       const rect = game.canvas.getBoundingClientRect();
-      return (app.layout?.instances ?? []).map((instance) => {
+      const { layout, scene } = app;
+      return (layout?.instances ?? []).map((instance) => {
         const [x, y] = logicalToScreen(instance.tap, rect);
-        return { name: instance.name, objectId: instance.objectId, x, y };
+        const found = scene?.hitmap ? instancesAt(scene.hitmap, ...instance.tap) : [];
+        const objectIds = [...new Set(found.map((i) => layout.instances[i - 1].objectId))];
+        return { name: instance.name, objectId: instance.objectId, objectIds, x, y };
       });
+    },
+
+    /**
+     * A point in page coordinates where all the given objects share pixels (the middle
+     * one of those hit-map pixels), or null if they never do.
+     * @param {string[]} objectIds
+     */
+    sharedPoint(objectIds) {
+      const { layout, scene } = app;
+      const hitmap = scene?.hitmap;
+      if (!hitmap) return null;
+      const matches = [];
+      for (let p = 0; p < hitmap.pixels.length; p++) {
+        const found = instancesOfCell(hitmap, hitmap.pixels[p]).map(
+          (i) => layout.instances[i - 1].objectId,
+        );
+        if (objectIds.every((id) => found.includes(id))) matches.push(p);
+      }
+      if (!matches.length) return null;
+      const p = matches[Math.floor(matches.length / 2)];
+      const scale = LOGICAL_WIDTH / hitmap.width;
+      const logical = [
+        ((p % hitmap.width) + 0.5) * scale,
+        (Math.floor(p / hitmap.width) + 0.5) * scale,
+      ];
+      const [x, y] = logicalToScreen(logical, game.canvas.getBoundingClientRect());
+      return { x, y };
     },
 
     /** A point in page coordinates from logical coordinates (e.g. an empty wall). */

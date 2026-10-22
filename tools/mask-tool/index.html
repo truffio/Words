@@ -25,15 +25,27 @@
 
       <section>
         <h2>Objects</h2>
+        <label class="row small">
+          <input id="show-masks" class="switch" type="checkbox" role="switch" /> Show saved masks
+          (M)
+        </label>
+        <div class="row">
+          <button type="button" id="test-taps" aria-pressed="false">Test taps</button>
+        </div>
+        <div id="test-result" class="small" role="status" aria-live="polite" hidden></div>
         <ul id="objects"></ul>
       </section>
 
       <section id="editing" hidden>
         <h2>Editing <span id="instance-name"></span></h2>
-        <div class="row" role="radiogroup" aria-label="Tool">
+        <div class="row tools" role="radiogroup" aria-label="Tool">
           <label><input type="radio" name="mode" value="sam" checked /> Smart select</label>
           <label><input type="radio" name="mode" value="wand" /> Magic wand</label>
+          <label><input type="radio" name="mode" value="rect" /> Rectangle</label>
+          <label><input type="radio" name="mode" value="polygon" /> Points</label>
+          <label><input type="radio" name="mode" value="free" /> Free curve</label>
         </div>
+        <p id="tool-hint" class="small"></p>
         <label class="field" id="tolerance-field" hidden>
           Wand tolerance <output id="tolerance-value">40</output>
           <input id="tolerance" type="range" min="5" max="120" value="40" />
@@ -66,7 +78,16 @@
           <li>
             Use the <strong>magic wand</strong> to add a flat-coloured area, Shift to remove one.
           </li>
+          <li>
+            Or draw the area: <strong>Rectangle</strong> (drag), <strong>Points</strong> (click the
+            corners, then click the first one or press Enter), or <strong>Free curve</strong> (drag
+            around the object). Shift removes the area instead.
+          </li>
           <li><strong>Save</strong>, then the next object. Ctrl+Z undoes.</li>
+          <li>
+            <strong>Test taps</strong>, then click anywhere: it lists the objects a tap there
+            detects in the game.
+          </li>
         </ol>
         <p>
           Then run <code>npm run build:rooms</code> and check
@@ -81,6 +102,7 @@
       <div id="canvas-wrap">
         <canvas id="painting"></canvas>
         <canvas id="overlay"></canvas>
+        <canvas id="preview"></canvas>
       </div>
     </main>
 

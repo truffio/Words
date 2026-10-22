@@ -1,7 +1,10 @@
 name: CI
 
+# Pull requests run once (pull_request); pushes run only on the long-lived branches, so
+# a pushed branch with an open pull request is not checked twice.
 on:
   push:
+    branches: [main, dev]
   pull_request:
 
 jobs:
@@ -21,16 +24,13 @@ jobs:
       - run: npm run test
       - run: npm run build
 
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      # The end-to-end tests (npm run test:e2e) run locally before each push, not here:
+      # without a GPU they take several minutes on the runner and are timing-sensitive.
 
-      - name: Upload test report and room review images
+      - name: Upload room review images
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-report
-          path: |
-            playwright-report/
-            test-results/
-            reports/
+          name: room-reports
+          path: reports/
           retention-days: 14

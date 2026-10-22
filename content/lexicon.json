@@ -123,5 +123,140 @@
     "label": "bath mat",
     "prompt": "Find the bath mat.",
     "accepted": ["bath mat", "mat"]
+  },
+  "ceiling-fan": {
+    "label": "ceiling fan",
+    "prompt": "Find the ceiling fan.",
+    "accepted": ["ceiling fan", "fan"]
+  },
+  "ceiling": {
+    "label": "ceiling",
+    "prompt": "Find the ceiling.",
+    "accepted": ["ceiling"]
+  },
+  "wall": {
+    "label": "wall",
+    "prompt": "Find the wall.",
+    "accepted": ["wall"]
+  },
+  "frame": {
+    "label": "frame",
+    "prompt": "Find the frame.",
+    "accepted": ["frame", "picture frame"]
+  },
+  "painting": {
+    "label": "painting",
+    "prompt": "Find the painting.",
+    "accepted": ["painting", "picture"]
+  },
+  "vase": {
+    "label": "vase",
+    "prompt": "Find the vase.",
+    "accepted": ["vase"]
+  },
+  "fireplace-mantel": {
+    "label": "fireplace mantel",
+    "prompt": "Find the fireplace mantel.",
+    "accepted": ["fireplace mantel", "mantel", "mantelpiece"]
+  },
+  "fireplace": {
+    "label": "fireplace",
+    "prompt": "Find the fireplace.",
+    "accepted": ["fireplace"]
+  },
+  "fire": {
+    "label": "fire",
+    "prompt": "Find the fire.",
+    "accepted": ["fire"]
+  },
+  "log": {
+    "label": "log",
+    "prompt": "Find a log.",
+    "accepted": ["log"]
+  },
+  "banister": {
+    "label": "banister",
+    "prompt": "Find the banister.",
+    "accepted": ["banister", "bannister", "railing"]
+  },
+  "staircase": {
+    "label": "staircase",
+    "prompt": "Find the staircase.",
+    "accepted": ["staircase", "stairs", "stairway"]
+  },
+  "step": {
+    "label": "step",
+    "prompt": "Find a step.",
+    "accepted": ["step", "stair"]
+  },
+  "carpet": {
+    "label": "carpet",
+    "prompt": "Find the carpet.",
+    "accepted": ["carpet"]
+  },
+  "recliner": {
+    "label": "recliner",
+    "prompt": "Find the recliner.",
+    "accepted": ["recliner", "armchair"]
+  },
+  "remote-control": {
+    "label": "remote control",
+    "prompt": "Find the remote control.",
+    "accepted": ["remote control", "remote"]
+  },
+  "television": {
+    "label": "television",
+    "prompt": "Find the television.",
+    "accepted": ["television", "tv", "tv set"]
+  },
+  "wall-unit": {
+    "label": "wall unit",
+    "prompt": "Find the wall unit.",
+    "accepted": ["wall unit"]
+  },
+  "stereo-system": {
+    "label": "stereo system",
+    "prompt": "Find the stereo system.",
+    "accepted": ["stereo system", "stereo"]
+  },
+  "speaker": {
+    "label": "speaker",
+    "prompt": "Find a speaker.",
+    "accepted": ["speaker"]
+  },
+  "bookcase": {
+    "label": "bookcase",
+    "prompt": "Find the bookcase.",
+    "accepted": ["bookcase", "bookshelf"]
+  },
+  "curtains": {
+    "label": "curtains",
+    "prompt": "Find the curtains.",
+    "accepted": ["curtains", "curtain", "drapes"]
+  },
+  "cushion": {
+    "label": "cushion",
+    "prompt": "Find a cushion.",
+    "accepted": ["cushion"]
+  },
+  "sofa": {
+    "label": "sofa",
+    "prompt": "Find the sofa.",
+    "accepted": ["sofa", "couch"]
+  },
+  "coffee-table": {
+    "label": "coffee table",
+    "prompt": "Find the coffee table.",
+    "accepted": ["coffee table"]
+  },
+  "lampshade": {
+    "label": "lampshade",
+    "prompt": "Find the lampshade.",
+    "accepted": ["lampshade", "lamp shade"]
+  },
+  "end-table": {
+    "label": "end table",
+    "prompt": "Find the end table.",
+    "accepted": ["end table", "side table"]
   }
 }

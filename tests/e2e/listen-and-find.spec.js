@@ -1,16 +1,16 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * Opens the game with a fixed seed and starts a round in the kitchen.
+ * Opens the game with a fixed seed and starts a round in a room (the kitchen by default).
  * `nextDelay` keeps feedback on screen longer, for tests that check it after an answer.
  */
-async function startRound(page, seed = 42, nextDelay = null) {
+async function startRound(page, seed = 42, nextDelay = null, room = 'Kitchen') {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   await page.waitForFunction(() => window.__wordsTest);
   await page.evaluate((s) => window.__wordsTest.setSeed(s), seed);
   await page.evaluate((ms) => window.__wordsTest.setNextDelay(ms), nextDelay);
-  await page.getByRole('button', { name: 'Kitchen' }).click();
+  await page.getByRole('button', { name: room }).click();
   await page.getByRole('button', { name: 'Listen and find' }).click();
   await page.waitForFunction(() => window.__wordsTest.state.awaitingAnswer);
 }
@@ -37,8 +37,9 @@ async function clickObject(page, objectId) {
   await page.mouse.click(point.x, point.y);
 }
 
+/** Clicks an object that is not the target, at a point the target does not share. */
 async function clickWrongObject(page, objectId) {
-  const point = (await tapPoints(page)).find((t) => t.objectId !== objectId);
+  const point = (await tapPoints(page)).find((t) => !t.objectIds.includes(objectId));
   await page.mouse.click(point.x, point.y);
 }
 
@@ -86,15 +87,37 @@ test('a full round ends with a summary and can be replayed', async ({ page }) =>
   test.setTimeout(120_000);
   await startRound(page, 42, FAST_MS);
 
-  for (let n = 1; n <= 10; n++) {
+  // A round asks for every object of the room once.
+  const { roundLength } = await state(page);
+  expect(roundLength).toBe(9);
+  const asked = new Set();
+  for (let n = 1; n <= roundLength; n++) {
     await waitForChallenge(page, n);
-    await clickObject(page, (await state(page)).challenge);
+    const { challenge } = await state(page);
+    asked.add(challenge);
+    await clickObject(page, challenge);
   }
+  expect(asked.size).toBe(roundLength);
 
   await expect(page.getByRole('heading', { name: 'Well done!' })).toBeVisible();
-  await expect(page.getByTestId('summary')).toHaveText('You found 10 out of 10.');
+  await expect(page.getByTestId('summary')).toHaveText('You found 9 out of 9.');
 
   await page.getByRole('button', { name: 'Play again' }).click();
   await waitForChallenge(page, 1);
   await expect(page.getByTestId('score')).toHaveText('0 / 0');
+});
+
+test('a tap on shared pixels counts for every object there', async ({ page }) => {
+  // In the living room, seed 17 asks for the stereo system first; its mask contains
+  // both speakers, which the speaker's mask covers too.
+  await startRound(page, 17, FEEDBACK_MS, 'Living room');
+  expect((await state(page)).challenge).toBe('stereo-system');
+
+  const onSpeaker = await page.evaluate(() =>
+    window.__wordsTest.sharedPoint(['speaker', 'stereo-system']),
+  );
+  expect(onSpeaker).not.toBeNull();
+  await page.mouse.click(onSpeaker.x, onSpeaker.y);
+  await expect(page.getByTestId('feedback')).toHaveText("Great job! That's the stereo system.");
+  await expect(page.getByTestId('score')).toHaveText('1 / 1');
 });

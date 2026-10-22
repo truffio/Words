@@ -177,7 +177,7 @@ describe('loadContent: draft rooms', () => {
 });
 
 describe('analyseRoom', () => {
-  it('resolves overlaps, pads regions, and warns about both', async () => {
+  it('shares overlaps, finds wholes and parts, and pads regions', async () => {
     await setupRoom({
       lexicon: { cabinet: entry('cabinet'), cup: entry('cup'), pin: entry('pin') },
       manifest: {
@@ -195,13 +195,38 @@ describe('analyseRoom', () => {
     const { rooms } = await load();
     const analysis = analyseRoom(rooms[0]);
     expect(analysis.problems).toEqual([]);
-    expect(analysis.warnings.join('\n')).toMatch(/"cabinet" and "cup" overlap .*"cup" wins/);
+    expect(analysis.notes).toContain('room "test": "cabinet" and "cup" share 10000 pixels');
+    expect(analysis.parts).toEqual([
+      ['cabinet', 'cup'],
+      ['cabinet', 'pin'],
+    ]);
     expect(analysis.warnings.join('\n')).toMatch(/"pin" stays below the 80 px minimum tap size/);
 
     const [cabinet, cup] = analysis.hitBounds;
     // The cabinet grows by the base padding (8 logical px) on every side.
     expect(cabinet).toEqual({ x: 96, y: 96, w: 208, h: 208 });
-    // The cup stays inside the cabinet: it cannot grow into it.
+    // The cup stays inside the cabinet, whose pixels it shares: it cannot grow into it.
     expect(cup).toEqual({ x: 150, y: 150, w: 50, h: 50 });
+  });
+
+  it('keeps a part in front when it has a higher depth', async () => {
+    await setupRoom({
+      lexicon: { table: entry('table'), cup: entry('cup') },
+      manifest: {
+        id: 'test',
+        title: 'Test',
+        objects: [{ id: 'table' }, { id: 'cup', depth: 1 }],
+      },
+      masks: [
+        ['table.png', [[200, 200, 400, 400]]],
+        ['cup.png', [[300, 300, 100, 100]]],
+      ],
+    });
+    const { rooms } = await load();
+    const analysis = analyseRoom(rooms[0]);
+    expect(analysis.notes).toContain('room "test": "cup" is in front of "table" on 10000 pixels');
+    expect(analysis.parts).toEqual([]);
+    // No pixel is shared: every cell is a single instance (or empty).
+    expect(analysis.sets).toEqual([[], [1], [2]]);
   });
 });

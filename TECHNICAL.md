@@ -128,13 +128,15 @@ Each room starts from **one painting** in which every object is already drawn in
 `build:rooms` runs the same checks as `npm run validate:content` first (shared code in `tools/lib/room-content.js`) and stops on any problem. The review image is written outside `public/` so it never ends up in the game build.
 
 - **The background keeps the objects.** Cut-out sprites are drawn exactly over their own pixels, so the room looks identical. A highlight or a slight scale-up pulse never reveals a hole. Feedback must not **move or shrink** a sprite, because the original painted object underneath would show.
-- **Cut-outs** are made by applying the resolved mask to the painting (about 1 px of edge feathering from a 3 × 3 blur of the alpha), trimming to the bounding box plus 1 px, and packing into the atlas with a shelf packer. Their position comes from the mask's bounding box. `?debug=cutouts` (dev and test builds) hides the painting to check that every cut-out sits in place.
-- **The hit map is the single authority for taps.** Each pixel of the hit map holds the index of the instance that owns it, or 0 for none. One lookup per tap answers *which object was touched*, with no rectangles, no overlap ambiguity, and no dependency on draw order.
-  - Stored at **half resolution** (1024 × 768, ~0.75 MB as bytes in memory), read once at room load into a `Uint8Array`. Up to 255 instances per room.
-  - **File format:** `hitmap.bin` is **run-length encoded**: little-endian Uint16 pairs `[value, count]` covering the pixels in row-major order (~18 KB for the M1 kitchen). A binary file is used instead of a PNG so that no browser colour management can alter the index values, and so the decoder is a pure function testable in Node (`src/core/hitmap.js`).
-  - **Overlaps are resolved at build time.** Masks may overlap (hand-made masks usually cover an object's whole shape). Contested pixels go to the object with the higher manifest `depth`; at equal depth (default 0) the smaller object wins (a cup in front of a cabinet). Every overlap is reported as a warning with its pixel count and winner. The cut-outs use the resolved regions too, so a back object's cut-out never includes the object in front.
-  - **Hit regions are padded.** Every region grows by 8 logical px into free (unowned) pixels, so thin parts such as chair legs are easier to hit, plus any per-object `hitPadding` from the manifest. Regions still smaller than the minimum tap size (80 logical px, §5) keep growing until they reach it, never into another object; a warning lists any that cannot. Tap points are computed before padding, so they stay inside the painted object.
-- **Tap points:** for each instance, the build computes a point guaranteed to be well inside its hit region (the point farthest from the region's edge, nearest its centroid on ties). Tests tap there, and *Look and identify* can anchor its highlight there.
+- **Cut-outs** are made by applying the object's full mask (shared pixels included) to the painting (about 1 px of edge feathering from a 3 × 3 blur of the alpha), trimming to the bounding box plus 1 px, and packing into the atlas with a shelf packer. Their position comes from the mask's bounding box. `?debug=cutouts` (dev and test builds) hides the painting to check that every cut-out sits in place.
+- **The hit map is the single authority for taps.** Objects may share pixels (a whole and its parts: a stereo system and its speakers, a lamp and its lampshade), so each pixel of the hit map holds a **cell**: 0 for none, or an index into the room's table of instance sets (`hitSets` in `layout.json`). Cell *i* (1 ≤ *i* ≤ instance count) is instance *i* alone; shared pixels use the cells after that. Each set lists its instances from the smallest (the most specific) to the largest. One lookup per tap answers *which objects were touched*, with no rectangles and no dependency on draw order.
+  - Stored at **half resolution** (1024 × 768, ~1.5 MB in memory), read once at room load into a `Uint16Array`. Up to 255 instances per room.
+  - **File format:** `hitmap.bin` is **run-length encoded**: little-endian Uint16 pairs `[cell, count]` covering the pixels in row-major order (~18 KB for the M1 kitchen). A binary file is used instead of a PNG so that no browser colour management can alter the values, and so the decoder is a pure function testable in Node (`src/core/hitmap.js`).
+  - **Overlapping masks share their pixels.** Masks may overlap (hand-made masks usually cover an object's whole shape). At equal manifest `depth` (default 0), overlapping objects share the pixels, and a tap there counts for each of them. `depth` is only for real occlusion: where depths differ, the higher depth keeps the pixels alone (a cup marked in front of a table). Overlaps are reported as notes, not warnings. The cut-outs and glows use each object's full region, so a stereo system's glow includes its speakers.
+  - **Wholes and parts:** two objects sharing at least half of the smaller one's pixels are a whole and its part, listed in `layout.json` as `parts`. *Look and identify* never offers one of them as a wrong choice for the other (with a speaker glowing, "stereo system" would be a wrong answer that is really right).
+  - **Hit regions are padded.** Every region grows by 8 logical px into free (empty) pixels, so thin parts such as chair legs are easier to hit, plus any per-object `hitPadding` from the manifest. Regions still smaller than the minimum tap size (80 logical px, §5) keep growing until they reach it, never into another object; a warning lists any that cannot. Tap points are computed before padding, so they stay inside the painted object.
+- **Tap points:** for each instance, the build computes a point well inside the area where it is the most specific object (the point farthest from that area's edge, nearest its centroid on ties), so a tap there names that instance; an object made only of its parts uses its whole region. Tests tap there, and highlights can anchor there.
+- **Answering a tap:** in *Listen and find*, a tap answers with every object at that point. It is right if the target is among them; a wrong tap counts as (and highlights) the most specific object there.
 
 ### Separation of Concerns
 
@@ -199,10 +201,10 @@ Art can change without touching rules, and vocabulary can change without touchin
 
 These are proposed defaults, to be confirmed (see §11):
 
-- **Round length:** 10 challenges, drawn without repetition from the room's eligible objects; no word repeats within a round while unused words remain.
+- **Round length:** one challenge per object of the room, in random order, so a round goes through every object once (#76).
 - **Wrong answer:** encouraging feedback and another try. After **2 wrong attempts**, the game **reveals** the answer (highlights the object and plays its word), then moves on.
 - **Scoring:** a challenge counts as *correct* if answered without a reveal. The HUD shows *correct / attempted*, with optional elapsed time.
-- **Look and identify:** 3 or 4 choices; distractors come from the same room and never share an accepted spelling with the answer.
+- **Look and identify:** 3 or 4 choices; distractors come from the same room, never share an accepted spelling with the answer, and are never a whole or a part of the target object.
 - **Recall and spell:** the answer is trimmed, lowercased, and has repeated spaces collapsed, then compared against `accepted`. Typo tolerance is a later enhancement.
 
 ---
@@ -301,7 +303,7 @@ Measured on a laptop in M6 (desktop Chromium, local server, [M6 report](docs/mil
 
 | Layer | Tool | Scope |
 |-------|------|-------|
-| **Unit** | Vitest (Node) | Seedable RNG and shuffling, question selection (no repeats, eligibility, difficulty), distractor selection, answer normalization and checking, retry/reveal rules, scoring and session state, **hit-map lookup and coordinate conversion**, and room-build algorithms (overlap resolution, padding, tap points) on small synthetic masks. |
+| **Unit** | Vitest (Node) | Seedable RNG and shuffling, question selection (no repeats, eligibility, difficulty), distractor selection, answer normalization and checking, retry/reveal rules, scoring and session state, **hit-map lookup and coordinate conversion**, and room-build algorithms (shared pixels and depth, padding, tap points) on small synthetic masks. |
 | **Content** | `tools/validate-content` + `build:rooms` checks (Node + Ajv) | See below. |
 | **End-to-end** | Playwright | Full rounds in desktop Chromium from M1; WebKit with an iPad profile added in M5. Runs against the production build served by `vite preview`. |
 | **Manual** | Laptop/PC browser, then real iPad | Per-milestone checklist in a desktop browser from M1. From M5, also on the iPad: audio, touch accuracy, memory, orientation, keyboard. Playwright WebKit on Linux is **not** a substitute for iPad Safari. |
@@ -312,7 +314,7 @@ Measured on a laptop in M6 (desktop Chromium, local server, [M6 report](docs/mil
 - IDs are unique; every manifest object exists in the lexicon.
 - Every manifest object has at least one mask, and every mask file name matches a manifest object.
 - Masks have the painting's dimensions and are not empty.
-- Mask overlaps are reported (resolved by size or `depth`). Regions below minimum tap size that cannot be padded are warned about.
+- Mask overlaps are reported as notes (shared, or settled by `depth`). Regions below minimum tap size that cannot be padded are warned about.
 - Every lexicon audio reference exists.
 - Accepted spellings are lowercase and do not collide between objects in the same room.
 - Warnings (not failures) for unused assets.
@@ -475,7 +477,7 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 | # | Decision | Proposed default | Settle by |
 |---|----------|------------------|-----------|
 | A | Storage of room paintings and masks (~5 MB per room) | **Settled (M1):** final painting and masks in Git under `content/rooms/<room>/` (needed by the build); generation drafts and variants outside the repo; Git LFS if the repo grows too large | M1 |
-| B | Round length; attempts before reveal; scoring rule | **Settled (M1), to revisit after playtesting:** 10 challenges; reveal after 2 wrong attempts; correct = without reveal | M1 |
+| B | Round length; attempts before reveal; scoring rule | **Settled (M1), to revisit after playtesting:** every object of the room once (was 10 challenges until #76); reveal after 2 wrong attempts; correct = without reveal | M1 |
 | C | Mask authoring tool: segmentation tool vs. image-editor layers | **Settled (M2):** built-in mask tool with Segment Anything and a magic wand ([masks.md](docs/art/masks.md)) | M2 |
 | D | AI image generator (with inpainting) and style guide | Style guide written ([style-guide.md](docs/art/style-guide.md)); **generator still to choose**, one tool for all rooms | M2 |
 | E | TTS provider and **voice/accent** (e.g. Canadian or US English, to match the immersion program) | Chosen from sample clips | M3 |
@@ -488,6 +490,14 @@ The order aims for a **playable room as early as possible**: M1 delivers a text-
 ---
 
 ## Revision Notes
+
+**Revision 14: rounds cover the whole room (#76)**
+
+- A round asks for every object of the room once, instead of 10 challenges.
+
+**Revision 13: shared positions (#74)**
+
+- Overlapping masks share their pixels instead of one object winning: the hit map stores sets of instances (cells), a tap counts for every object there, cut-outs and glows use full masks, and *Look and identify* never offers a whole or a part of the target as a wrong choice. `depth` now only marks occlusion.
 
 **Revision 12: M6 rooms**
 

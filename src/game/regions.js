@@ -1,7 +1,10 @@
+import { instancesOfCell } from '../core/hitmap.js';
+
 /**
  * Draws an instance's hit region as an image: a translucent fill with a solid edge.
  * Used for feedback highlights and the debug overlay. Region pixels come from the hit
- * map (half resolution), so the image is displayed at twice its size.
+ * map (half resolution), so the image is displayed at twice its size. The region
+ * includes the pixels the instance shares with others.
  */
 
 /**
@@ -25,21 +28,20 @@ export function regionCanvas(hitmap, instance, rgb, { fill = 110, edge = 255 } =
   const ctx = canvas.getContext('2d');
   const image = ctx.createImageData(w, h);
 
-  const at = (x, y) =>
-    x >= 0 && y >= 0 && x < hitmap.width && y < hitmap.height
-      ? hitmap.pixels[y * hitmap.width + x]
-      : 0;
+  const inside = (x, y) =>
+    x >= 0 &&
+    y >= 0 &&
+    x < hitmap.width &&
+    y < hitmap.height &&
+    instancesOfCell(hitmap, hitmap.pixels[y * hitmap.width + x]).includes(instance.index);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const hx = x0 + x;
       const hy = y0 + y;
-      if (at(hx, hy) !== instance.index) continue;
+      if (!inside(hx, hy)) continue;
       const isEdge =
-        at(hx - 1, hy) !== instance.index ||
-        at(hx + 1, hy) !== instance.index ||
-        at(hx, hy - 1) !== instance.index ||
-        at(hx, hy + 1) !== instance.index;
+        !inside(hx - 1, hy) || !inside(hx + 1, hy) || !inside(hx, hy - 1) || !inside(hx, hy + 1);
       const o = (y * w + x) * 4;
       image.data[o] = rgb[0];
       image.data[o + 1] = rgb[1];
