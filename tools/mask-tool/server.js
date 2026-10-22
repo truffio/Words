@@ -97,6 +97,7 @@ function createApi(contentDir) {
             objects: manifest.objects.map((o) => ({
               id: o.id,
               label: lexicon[o.id]?.label ?? o.id,
+              depth: o.depth ?? 0,
             })),
             masks: await listMasks(id),
           };

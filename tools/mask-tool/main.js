@@ -1,7 +1,9 @@
 /**
  * Mask tool (dev server only): make one mask per object instance by clicking on the room
- * painting. Smart select uses Segment Anything; the magic wand fills flat-coloured areas.
- * Masks are saved through the dev-server API in server.js.
+ * painting. Smart select uses Segment Anything; the magic wand fills flat-coloured areas;
+ * the rectangle, points, and free-curve tools draw an area by hand. Saved masks can be
+ * shown on demand, and the test mode lists the objects a tap detects, by the game's
+ * rules. Masks are saved through the dev-server API in server.js.
  */
 import { LOGICAL_HEIGHT as H, LOGICAL_WIDTH as W } from '../../src/core/display.js';
 import {
@@ -9,10 +11,14 @@ import {
   area,
   compose,
   floodFill,
+  fillPolygon,
   iou,
+  masksAt,
+  masksOverlay,
   maskToRgba,
   nextInstanceName,
   overlayPixels,
+  rectangleCorners,
   rgbaToMask,
 } from './mask-ops.js';
 import { loadSam } from './sam.js';
@@ -21,13 +27,49 @@ const API = '/__mask-tool';
 const $ = (id) => document.getElementById(id);
 const paintingCanvas = /** @type {HTMLCanvasElement} */ ($('painting'));
 const overlayCanvas = /** @type {HTMLCanvasElement} */ ($('overlay'));
-for (const canvas of [paintingCanvas, overlayCanvas]) {
+const previewCanvas = /** @type {HTMLCanvasElement} */ ($('preview'));
+for (const canvas of [paintingCanvas, overlayCanvas, previewCanvas]) {
   canvas.width = W;
   canvas.height = H;
 }
 const overlayCtx = overlayCanvas.getContext('2d');
+const previewCtx = previewCanvas.getContext('2d');
 
 const empty = () => new Uint8Array(W * H);
+
+/** Colours of the saved masks when shown (as in the build's review image). */
+const PALETTE = [
+  [230, 25, 75],
+  [60, 180, 75],
+  [0, 130, 200],
+  [245, 130, 48],
+  [145, 30, 180],
+  [70, 200, 220],
+  [240, 50, 230],
+  [150, 190, 30],
+  [0, 128, 128],
+  [170, 110, 40],
+  [128, 0, 0],
+  [0, 0, 128],
+];
+/** Test mode: the most specific mask a tap detects, then the others there. */
+const TEST_COLOURS = { first: [230, 110, 0], other: [250, 200, 40] };
+
+/** Tools that draw an area by hand. */
+const SHAPE_TOOLS = new Set(['rect', 'polygon', 'free']);
+const TOOL_HINTS = {
+  sam: 'Click the object; Shift+click a part to leave out.',
+  wand: 'Click a flat-coloured area to add it; Shift+click to remove one.',
+  rect: 'Drag a rectangle to add it; hold Shift to remove it instead.',
+  polygon:
+    'Click the corners one by one, then click the first one, double-click, or press Enter. ' +
+    'Shift at the first corner removes the area. Esc cancels, Ctrl+Z removes the last corner.',
+  free: 'Drag around the area to add it; hold Shift to remove it instead.',
+};
+/** Points closer than this to the first corner close the shape (image pixels). */
+const CLOSE_DISTANCE = 24;
+/** Free curve: minimum distance between recorded points (image pixels). */
+const FREE_STEP = 4;
 
 const state = {
   rooms: [],
@@ -36,8 +78,21 @@ const state = {
   painting: null,
   /** @type {Map<string, Uint8Array>} saved masks of the current room */
   saved: new Map(),
-  /** union of the saved masks other than the one being edited */
-  others: empty(),
+  /**
+   * Saved masks with what display and testing need: depth, area, colour, label anchor.
+   * @type {{ name: string, pixels: Uint8Array, depth: number, area: number,
+   *   colour: [number, number, number], anchor: { x: number, y: number } }[]}
+   */
+  savedInfo: [],
+  /** @type {Uint8ClampedArray | null} the saved masks' colours, computed when first shown */
+  savedOverlay: null,
+  showMasks: false,
+  testing: false,
+  /** @type {{ x: number, y: number, names: string[] } | null} the last test tap */
+  testHit: null,
+  /** @type {{ kind: string, label: 0 | 1, points: { x: number, y: number }[],
+   *   hover?: { x: number, y: number } } | null} the shape being drawn */
+  shape: null,
   instance: null,
   rename: null,
   layers: { base: empty(), sam: null, added: empty(), removed: empty() },
@@ -221,6 +276,40 @@ async function loadSavedMasks() {
       state.saved.set(name, rgbaToMask(data));
     }),
   );
+  const depth = new Map(state.room.objects.map((o) => [o.id, o.depth ?? 0]));
+  state.savedInfo = [...state.saved.keys()].sort().map((name, i) => {
+    const pixels = state.saved.get(name);
+    return {
+      name,
+      pixels,
+      depth: depth.get(name.split('@')[0]) ?? 0,
+      area: area(pixels),
+      colour: PALETTE[i % PALETTE.length],
+      anchor: labelAnchor(pixels),
+    };
+  });
+  state.savedOverlay = null;
+  state.testHit = null;
+}
+
+/** Where to write a mask's name: the middle of its middle row. */
+function labelAnchor(mask) {
+  let top = -1;
+  let bottom = -1;
+  for (let p = 0; p < mask.length; p++) {
+    if (!mask[p]) continue;
+    if (top < 0) top = Math.floor(p / W);
+    bottom = Math.floor(p / W);
+  }
+  const y = Math.floor((top + bottom) / 2);
+  let left = W;
+  let right = -1;
+  for (let x = 0; x < W; x++) {
+    if (!mask[y * W + x]) continue;
+    left = Math.min(left, x);
+    right = x;
+  }
+  return { x: (left + right) / 2, y };
 }
 
 // --- Editing -----------------------------------------------------------------------------
@@ -238,10 +327,8 @@ function selectInstance(name, { rename = null } = {}) {
   state.points = [];
   state.candidates = [];
   state.history = [];
+  state.shape = null;
   state.dirty = false;
-
-  state.others = empty();
-  for (const [other, mask] of state.saved) if (other !== name) addInto(state.others, mask);
 
   $('editing').hidden = !name;
   $('instance-name').textContent = name ?? '';
@@ -261,34 +348,49 @@ function working() {
   return compose(state.layers);
 }
 
-/** @param {number} x @param {number} y @param {0 | 1} label */
-async function clickAt(x, y, label) {
+/** Whether a mask can be edited now; says why not otherwise. */
+function canEdit() {
   if (!state.painting) {
     setStatus('Load a painting first.');
-    return;
+    return false;
   }
   if (!state.instance) {
     setStatus('Pick an object in the list first.');
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Adds an area to the mask (label 1) or removes it (label 0), as one undo step.
+ * @param {Uint8Array} region
+ * @param {0 | 1} label
+ */
+function applyRegion(region, label) {
+  state.dirty = true;
+  state.history.push({
+    type: 'region',
+    added: state.layers.added.slice(),
+    removed: state.layers.removed.slice(),
+  });
+  if (label) {
+    addInto(state.layers.added, region);
+    for (let p = 0; p < region.length; p++) if (region[p]) state.layers.removed[p] = 0;
+  } else {
+    addInto(state.layers.removed, region);
+  }
+  render();
+}
+
+/** @param {number} x @param {number} y @param {0 | 1} label */
+async function clickAt(x, y, label) {
+  if (!canEdit()) return;
+  if (state.mode === 'wand') {
+    const tolerance = Number(/** @type {HTMLInputElement} */ ($('tolerance')).value);
+    applyRegion(floodFill(state.painting, W, H, x, y, tolerance), label);
     return;
   }
   state.dirty = true;
-  if (state.mode === 'wand') {
-    const tolerance = Number(/** @type {HTMLInputElement} */ ($('tolerance')).value);
-    const region = floodFill(state.painting, W, H, x, y, tolerance);
-    state.history.push({
-      type: 'wand',
-      added: state.layers.added.slice(),
-      removed: state.layers.removed.slice(),
-    });
-    if (label) {
-      addInto(state.layers.added, region);
-      for (let p = 0; p < region.length; p++) if (region[p]) state.layers.removed[p] = 0;
-    } else {
-      addInto(state.layers.removed, region);
-    }
-    render();
-    return;
-  }
   state.points.push({ x, y, label });
   state.history.push({ type: 'point' });
   render();
@@ -296,9 +398,16 @@ async function clickAt(x, y, label) {
 }
 
 async function undo() {
+  // While drawing points, undo removes the last corner.
+  if (state.shape?.kind === 'polygon') {
+    state.shape.points.pop();
+    if (!state.shape.points.length) state.shape = null;
+    drawPreview();
+    return;
+  }
   const last = state.history.pop();
   if (!last) return;
-  if (last.type === 'wand') {
+  if (last.type === 'region') {
     state.layers.added = last.added;
     state.layers.removed = last.removed;
     render();
@@ -364,11 +473,188 @@ async function refreshRoom(selectName) {
   selectInstance(selectName);
 }
 
+// --- Drawing tools (rectangle, points, free curve) ---------------------------------------
+
+/** @param {{ x: number, y: number }} point @param {0 | 1} label @param {PointerEvent} event */
+function shapeDown(point, label, event) {
+  if (!canEdit()) return;
+  if (state.mode === 'polygon') {
+    if (!state.shape) {
+      state.shape = { kind: 'polygon', label, points: [point], hover: point };
+    } else {
+      const [first] = state.shape.points;
+      const near = Math.hypot(point.x - first.x, point.y - first.y) <= CLOSE_DISTANCE;
+      if (near && state.shape.points.length >= 3) {
+        finishShape();
+        return;
+      }
+      state.shape.points.push(point);
+    }
+    drawPreview();
+    return;
+  }
+  // Rectangle and free curve: drag. Capture the pointer to get the release outside too.
+  overlayCanvas.setPointerCapture(event.pointerId);
+  state.shape = { kind: state.mode, label, points: [point, point] };
+  drawPreview();
+}
+
+/** @param {{ x: number, y: number }} point */
+function shapeMove(point) {
+  const shape = state.shape;
+  if (!shape) return;
+  if (shape.kind === 'rect') shape.points[1] = point;
+  else if (shape.kind === 'polygon') shape.hover = point;
+  else {
+    const last = shape.points[shape.points.length - 1];
+    if (Math.hypot(point.x - last.x, point.y - last.y) < FREE_STEP) return;
+    shape.points.push(point);
+  }
+  drawPreview();
+}
+
+function shapeUp() {
+  if (state.shape && state.shape.kind !== 'polygon') finishShape();
+}
+
+/** Fills the shape into the mask, or drops it if it has no area. */
+function finishShape() {
+  const shape = state.shape;
+  state.shape = null;
+  drawPreview();
+  if (!shape) return;
+  const corners = shape.kind === 'rect' ? rectangleCorners(...shape.points) : shape.points;
+  const region = fillPolygon(corners, W, H);
+  if (!area(region)) {
+    setStatus('That shape has no area: draw a bigger one.');
+    return;
+  }
+  applyRegion(region, shape.label);
+  setStatus(shape.label ? 'Area added.' : 'Area removed.');
+}
+
+function cancelShape() {
+  state.shape = null;
+  drawPreview();
+}
+
+/** Draws the shape being drawn on the preview layer. */
+function drawPreview() {
+  previewCtx.clearRect(0, 0, W, H);
+  const shape = state.shape;
+  if (!shape) return;
+  const points =
+    shape.kind === 'rect'
+      ? rectangleCorners(...shape.points)
+      : shape.kind === 'polygon' && shape.hover
+        ? [...shape.points, shape.hover]
+        : shape.points;
+  previewCtx.beginPath();
+  points.forEach((p, i) => (i ? previewCtx.lineTo(p.x, p.y) : previewCtx.moveTo(p.x, p.y)));
+  if (shape.kind !== 'polygon') previewCtx.closePath();
+  previewCtx.fillStyle = shape.label ? 'rgba(40, 220, 90, 0.3)' : 'rgba(220, 40, 40, 0.3)';
+  previewCtx.fill('evenodd');
+  previewCtx.lineWidth = 6;
+  previewCtx.strokeStyle = '#ffffff';
+  previewCtx.stroke();
+  previewCtx.lineWidth = 3;
+  previewCtx.setLineDash([12, 8]);
+  previewCtx.strokeStyle = shape.label ? '#0b5d1e' : '#8c1d18';
+  previewCtx.stroke();
+  previewCtx.setLineDash([]);
+  if (shape.kind === 'polygon') {
+    shape.points.forEach((p, i) => {
+      previewCtx.beginPath();
+      previewCtx.arc(p.x, p.y, i ? 8 : CLOSE_DISTANCE / 2, 0, Math.PI * 2);
+      previewCtx.fillStyle = i ? '#ffffff' : '#ffd000';
+      previewCtx.fill();
+      previewCtx.lineWidth = 3;
+      previewCtx.strokeStyle = '#1f2a44';
+      previewCtx.stroke();
+    });
+  }
+}
+
+// --- Showing saved masks and testing taps ------------------------------------------------
+
+/** @param {boolean} on */
+function setShowMasks(on) {
+  state.showMasks = on;
+  /** @type {HTMLInputElement} */ ($('show-masks')).checked = on;
+  render();
+}
+
+/** @param {boolean} on */
+function setTesting(on) {
+  if (on && state.dirty && !confirm('Discard the unsaved changes to this mask?')) return;
+  if (on) {
+    state.dirty = false;
+    selectInstance(null);
+  }
+  cancelShape();
+  state.testing = on;
+  state.testHit = null;
+  document.body.classList.toggle('testing', on);
+  $('test-taps').setAttribute('aria-pressed', String(on));
+  $('test-result').hidden = !on;
+  $('test-result').textContent = on ? 'Click the painting to see what a tap there detects.' : '';
+  setStatus(on ? 'Test mode: clicks do not change any mask.' : '');
+  render();
+}
+
+/** An instance's word, from the room's objects: "chair@2" → "chair". */
+function objectLabel(name) {
+  return state.room.objects.find((o) => o.id === name.split('@')[0])?.label ?? name;
+}
+
+/** Lists the objects a tap at (x, y) detects, by the game's rules, from the saved masks. */
+function testAt(x, y) {
+  const names = masksAt(state.savedInfo, y * W + x);
+  state.testHit = { x, y, names };
+  const result = $('test-result');
+  if (!names.length) {
+    result.textContent = 'Nothing here: a tap on this point is ignored.';
+  } else if (names.length === 1) {
+    result.textContent = `A tap here detects ${objectLabel(names[0])} (${names[0]}).`;
+  } else {
+    result.textContent =
+      `A tap here detects ${names.length} objects: ${names.map((n) => `${objectLabel(n)} (${n})`).join(', ')}. ` +
+      `It counts for any of them; a wrong tap shows ${objectLabel(names[0])}.`;
+  }
+  render();
+}
+
+/** The saved masks in their colours, computed once per room and masks. */
+function savedOverlay() {
+  state.savedOverlay ??= masksOverlay(state.savedInfo, W, W * H);
+  return state.savedOverlay;
+}
+
+/** Writes each saved mask's name on it. */
+function drawLabels() {
+  overlayCtx.font = 'bold 30px system-ui, sans-serif';
+  overlayCtx.textAlign = 'center';
+  overlayCtx.textBaseline = 'middle';
+  for (const { name, anchor } of state.savedInfo) {
+    const width = overlayCtx.measureText(name).width + 20;
+    overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    overlayCtx.fillRect(anchor.x - width / 2, anchor.y - 22, width, 44);
+    overlayCtx.fillStyle = '#ffffff';
+    overlayCtx.fillText(name, anchor.x, anchor.y);
+  }
+}
+
 // --- Rendering ---------------------------------------------------------------------------
 
 function render() {
-  const pixels = overlayPixels(working(), state.others, W);
+  if (state.testing) {
+    renderTest();
+    return;
+  }
+  const under = state.showMasks ? savedOverlay() : null;
+  const pixels = overlayPixels(working(), W, under);
   overlayCtx.putImageData(new ImageData(pixels, W, H), 0, 0);
+  if (state.showMasks) drawLabels();
   for (const p of state.points) {
     overlayCtx.beginPath();
     overlayCtx.arc(p.x, p.y, 14, 0, Math.PI * 2);
@@ -382,6 +668,65 @@ function render() {
     const i = Number(button.dataset.candidate);
     button.disabled = !state.candidates[i];
     button.setAttribute('aria-pressed', String(i === state.candidate && !!state.candidates[i]));
+  });
+}
+
+/** Test mode: the saved masks on demand, the masks the last tap detected, and the tap. */
+function renderTest() {
+  const hit = state.testHit;
+  const detected = (hit?.names ?? []).map((name, i) => ({
+    pixels: state.saved.get(name),
+    colour: i ? TEST_COLOURS.other : TEST_COLOURS.first,
+  }));
+  const under = state.showMasks ? savedOverlay() : null;
+  const pixels = detected.length
+    ? masksOverlay(detected, W, W * H)
+    : (under?.slice() ?? new Uint8ClampedArray(W * H * 4));
+  // Dim the rest of the painting, so the detected masks stand out whole.
+  if (detected.length) {
+    for (let o = 3; o < pixels.length; o += 4) if (!pixels[o]) pixels[o] = 120;
+  }
+  overlayCtx.putImageData(new ImageData(pixels, W, H), 0, 0);
+  if (state.showMasks) drawLabels();
+  if (!hit) return;
+  overlayCtx.beginPath();
+  overlayCtx.arc(hit.x, hit.y, 16, 0, Math.PI * 2);
+  overlayCtx.fillStyle = '#1f2a44';
+  overlayCtx.fill();
+  overlayCtx.lineWidth = 6;
+  overlayCtx.strokeStyle = '#ffffff';
+  overlayCtx.stroke();
+  drawTapTag(hit);
+}
+
+/** Names the detected objects next to the tap, one line each in its highlight colour. */
+function drawTapTag(hit) {
+  if (!hit.names.length) return;
+  const lines = hit.names.map((name, i) => ({
+    text: objectLabel(name) === name ? name : `${objectLabel(name)} (${name})`,
+    colour: i ? TEST_COLOURS.other : TEST_COLOURS.first,
+  }));
+  const [lineHeight, pad, swatch, gap] = [44, 14, 22, 30];
+  overlayCtx.font = 'bold 32px system-ui, sans-serif';
+  overlayCtx.textAlign = 'left';
+  overlayCtx.textBaseline = 'middle';
+  const textWidth = Math.max(...lines.map((l) => overlayCtx.measureText(l.text).width));
+  const width = pad * 3 + swatch + textWidth;
+  const height = pad * 2 + lineHeight * lines.length;
+  // Right of the tap, or left of it near the right edge; kept inside the painting.
+  const left = hit.x + gap + width <= W ? hit.x + gap : hit.x - gap - width;
+  const top = Math.min(Math.max(0, hit.y - height / 2), H - height);
+  overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+  overlayCtx.beginPath();
+  overlayCtx.roundRect(Math.max(0, left), top, width, height, 12);
+  overlayCtx.fill();
+  lines.forEach(({ text, colour }, i) => {
+    const y = top + pad + lineHeight * (i + 0.5);
+    const x = Math.max(0, left) + pad;
+    overlayCtx.fillStyle = `rgb(${colour.join(', ')})`;
+    overlayCtx.fillRect(x, y - swatch / 2, swatch, swatch);
+    overlayCtx.fillStyle = '#ffffff';
+    overlayCtx.fillText(text, x + swatch + pad, y);
   });
 }
 
@@ -432,8 +777,18 @@ function imagePoint(event) {
 
 overlayCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
 overlayCanvas.addEventListener('pointerdown', (event) => {
-  const { x, y } = imagePoint(event);
-  clickAt(x, y, event.shiftKey || event.button === 2 ? 0 : 1);
+  const point = imagePoint(event);
+  const label = event.shiftKey || event.button === 2 ? 0 : 1;
+  if (state.testing) testAt(point.x, point.y);
+  else if (SHAPE_TOOLS.has(state.mode)) shapeDown(point, label, event);
+  else clickAt(point.x, point.y, label);
+});
+overlayCanvas.addEventListener('pointermove', (event) => {
+  if (state.shape) shapeMove(imagePoint(event));
+});
+overlayCanvas.addEventListener('pointerup', shapeUp);
+overlayCanvas.addEventListener('dblclick', () => {
+  if (state.shape?.kind === 'polygon') finishShape();
 });
 
 $('room').addEventListener('change', (e) => {
@@ -442,6 +797,7 @@ $('room').addEventListener('change', (e) => {
     return;
   }
   state.dirty = false;
+  if (state.testing) setTesting(false);
   openRoom(e.target.value);
 });
 
@@ -455,12 +811,20 @@ $('painting-file').addEventListener('change', (e) => {
   if (file) loadNewPainting(file);
 });
 
-document.querySelectorAll('input[name="mode"]').forEach((input) =>
-  input.addEventListener('change', () => {
-    state.mode = input.value;
-    $('tolerance-field').hidden = state.mode !== 'wand';
-  }),
-);
+/** @param {string} mode */
+function setMode(mode) {
+  cancelShape();
+  state.mode = mode;
+  $('tolerance-field').hidden = mode !== 'wand';
+  $('candidates-row').hidden = mode !== 'sam';
+  $('tool-hint').textContent = TOOL_HINTS[mode];
+}
+document
+  .querySelectorAll('input[name="mode"]')
+  .forEach((input) => input.addEventListener('change', () => setMode(input.value)));
+setMode(state.mode);
+$('show-masks').addEventListener('change', (e) => setShowMasks(e.target.checked));
+$('test-taps').addEventListener('click', () => setTesting(!state.testing));
 $('tolerance').addEventListener('input', (e) => {
   $('tolerance-value').textContent = e.target.value;
 });
@@ -481,6 +845,15 @@ document.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
     event.preventDefault();
     undo();
+  } else if (event.target instanceof HTMLInputElement && event.target.type !== 'radio') {
+    // Keys typed into a field are not shortcuts.
+  } else if (event.key === 'Enter' && state.shape?.kind === 'polygon') {
+    event.preventDefault();
+    finishShape();
+  } else if (event.key === 'Escape' && state.shape) {
+    cancelShape();
+  } else if (event.key === 'm' || event.key === 'M') {
+    setShowMasks(!state.showMasks);
   }
 });
 window.addEventListener('beforeunload', (event) => {
@@ -498,6 +871,10 @@ window.__maskTool = {
   settled: () => segmenting,
   area: () => area(working()),
   iouWithSaved: (name) => iou(working(), state.saved.get(name)),
+  setMode,
+  setShowMasks,
+  setTesting,
+  testAt,
 };
 
 try {

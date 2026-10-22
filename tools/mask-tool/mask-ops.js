@@ -89,32 +89,130 @@ export function iou(a, b) {
 }
 
 /**
- * Overlay pixels for display: other objects' masks in a faint blue, the working mask in
- * translucent green with an opaque edge.
+ * Overlay pixels for display: the working mask in translucent green with an opaque edge,
+ * over an optional background layer (e.g. the saved masks, from `masksOverlay`).
  * @param {Uint8Array} current
- * @param {Uint8Array} others
  * @param {number} width
+ * @param {Uint8ClampedArray | null} [under] RGBA pixels shown where the mask is not
  * @returns {Uint8ClampedArray}
  */
-export function overlayPixels(current, others, width) {
-  const data = new Uint8ClampedArray(current.length * 4);
+export function overlayPixels(current, width, under = null) {
+  const data = under ? under.slice() : new Uint8ClampedArray(current.length * 4);
   for (let p = 0; p < current.length; p++) {
-    const o = p * 4;
-    if (current[p]) {
-      const x = p % width;
-      const edge =
-        x === 0 ||
-        x === width - 1 ||
-        !current[p - 1] ||
-        !current[p + 1] ||
-        !current[p - width] ||
-        !current[p + width];
-      data.set(edge ? [0, 140, 40, 255] : [40, 220, 90, 110], o);
-    } else if (others[p]) {
-      data.set([40, 110, 255, 70], o);
-    }
+    if (!current[p]) continue;
+    const x = p % width;
+    const edge =
+      x === 0 ||
+      x === width - 1 ||
+      !current[p - 1] ||
+      !current[p + 1] ||
+      !current[p - width] ||
+      !current[p + width];
+    data.set(edge ? [0, 140, 40, 255] : [40, 220, 90, 110], p * 4);
   }
   return data;
+}
+
+/** Width of the stripes that show overlapping masks (pixels). */
+const STRIPE = 12;
+
+/**
+ * Colours several masks for review: a translucent fill per mask with an opaque edge;
+ * where masks overlap, stripes in the colours of every mask there.
+ * @param {{ pixels: Uint8Array, colour: [number, number, number] }[]} masks
+ * @param {number} width
+ * @param {number} length pixel count
+ * @returns {Uint8ClampedArray} RGBA pixels
+ */
+export function masksOverlay(masks, width, length) {
+  const data = new Uint8ClampedArray(length * 4);
+  const here = [];
+  for (let p = 0; p < length; p++) {
+    here.length = 0;
+    for (const mask of masks) if (mask.pixels[p]) here.push(mask);
+    if (!here.length) continue;
+    const x = p % width;
+    const y = (p - x) / width;
+    const mask = here[Math.floor((x + y) / STRIPE) % here.length];
+    const inside = (q) => q >= 0 && q < length && mask.pixels[q];
+    const edge =
+      x === 0 ||
+      x === width - 1 ||
+      !inside(p - 1) ||
+      !inside(p + 1) ||
+      !inside(p - width) ||
+      !inside(p + width);
+    data.set([...mask.colour, edge ? 255 : 110], p * 4);
+  }
+  return data;
+}
+
+/**
+ * Fills a polygon (even-odd rule): a pixel is inside when its centre is. Used for the
+ * rectangle, points, and free-curve tools.
+ * @param {{ x: number, y: number }[]} points vertices in pixel coordinates
+ * @param {number} width
+ * @param {number} height
+ * @returns {Uint8Array}
+ */
+export function fillPolygon(points, width, height) {
+  const mask = new Uint8Array(width * height);
+  if (points.length < 3) return mask;
+  const ys = points.map((p) => p.y);
+  const top = Math.max(0, Math.floor(Math.min(...ys)));
+  const bottom = Math.min(height - 1, Math.ceil(Math.max(...ys)));
+  const crossings = [];
+  for (let y = top; y <= bottom; y++) {
+    const cy = y + 0.5;
+    crossings.length = 0;
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i];
+      const b = points[(i + 1) % points.length];
+      // Half-open on y, so a vertex on the scanline is counted once.
+      if (a.y <= cy !== b.y <= cy) crossings.push(a.x + ((cy - a.y) * (b.x - a.x)) / (b.y - a.y));
+    }
+    crossings.sort((m, n) => m - n);
+    for (let k = 0; k + 1 < crossings.length; k += 2) {
+      const from = Math.max(0, Math.ceil(crossings[k] - 0.5));
+      const to = Math.min(width - 1, Math.ceil(crossings[k + 1] - 0.5) - 1);
+      mask.fill(1, y * width + from, y * width + to + 1);
+    }
+  }
+  return mask;
+}
+
+/**
+ * The corners of the rectangle between two opposite corner pixels, both included.
+ * @param {{ x: number, y: number }} a
+ * @param {{ x: number, y: number }} b
+ * @returns {{ x: number, y: number }[]}
+ */
+export function rectangleCorners(a, b) {
+  const [x0, x1] = [Math.min(a.x, b.x), Math.max(a.x, b.x) + 1];
+  const [y0, y1] = [Math.min(a.y, b.y), Math.max(a.y, b.y) + 1];
+  return [
+    { x: x0, y: y0 },
+    { x: x1, y: y0 },
+    { x: x1, y: y1 },
+    { x: x0, y: y1 },
+  ];
+}
+
+/**
+ * The masks a tap at one pixel detects, by the game's rules (build:rooms): overlapping
+ * masks share the pixel, except that only those with the highest depth keep it. The
+ * most specific (smallest) mask comes first, as in the game's hit map.
+ * @param {{ name: string, pixels: Uint8Array, depth: number, area: number }[]} masks
+ * @param {number} p pixel index
+ * @returns {string[]} mask names
+ */
+export function masksAt(masks, p) {
+  const here = masks.filter((m) => m.pixels[p]);
+  const top = Math.max(...here.map((m) => m.depth));
+  return here
+    .filter((m) => m.depth === top)
+    .sort((a, b) => a.area - b.area || a.name.localeCompare(b.name))
+    .map((m) => m.name);
 }
 
 /** Black-and-white opaque RGBA pixels for saving a mask as PNG. */

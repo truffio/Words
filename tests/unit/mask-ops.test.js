@@ -3,11 +3,15 @@ import {
   addInto,
   area,
   compose,
+  fillPolygon,
   floodFill,
   iou,
+  masksAt,
+  masksOverlay,
   maskToRgba,
   nextInstanceName,
   overlayPixels,
+  rectangleCorners,
   rgbaToMask,
 } from '../../tools/mask-tool/mask-ops.js';
 
@@ -91,13 +95,103 @@ describe('helpers', () => {
     expect(rgbaToMask(rgba)).toEqual(m);
   });
 
-  it('colours the working mask and other masks differently', () => {
+  it('draws the working mask over the layer underneath', () => {
     const current = mask(['...', '.#.', '...']);
-    const others = mask(['#..', '...', '...']);
-    const data = overlayPixels(current, others, 3);
-    expect(data[3]).toBe(70); // other mask: faint
+    const under = new Uint8ClampedArray(9 * 4);
+    under.set([1, 2, 3, 70], 0);
+    const data = overlayPixels(current, 3, under);
+    expect([...data.slice(0, 4)]).toEqual([1, 2, 3, 70]); // the layer underneath
     expect(data[4 * 4 + 3]).toBe(255); // single-pixel region: all edge
     expect(data[2 * 4 + 3]).toBe(0); // nothing
+    expect(overlayPixels(current, 3)[3]).toBe(0); // no layer underneath
+  });
+});
+
+describe('masksOverlay', () => {
+  it('colours each mask, with an opaque edge and stripes where masks overlap', () => {
+    const rows = (row) => mask([row, row, row]);
+    const red = { pixels: rows('#'.repeat(30)), colour: [255, 0, 0] };
+    const blue = { pixels: rows('.'.repeat(12) + '#'.repeat(18)), colour: [0, 0, 255] };
+    const data = masksOverlay([red, blue], 30, 90);
+    // Pixels of the middle row.
+    const px = (x) => [...data.slice((30 + x) * 4, (30 + x) * 4 + 4)];
+    expect(px(0)).toEqual([255, 0, 0, 255]); // red alone, at the image edge
+    expect(px(5)).toEqual([255, 0, 0, 110]); // red alone, inside
+    // From x = 12 both masks are there: stripes of 12 pixels alternate the colours.
+    expect(px(15).slice(0, 3)).toEqual([0, 0, 255]);
+    expect(px(23).slice(0, 3)).toEqual([255, 0, 0]);
+  });
+
+  it('leaves pixels outside every mask clear', () => {
+    const data = masksOverlay([{ pixels: mask(['#..']), colour: [9, 9, 9] }], 3, 3);
+    expect(data[1 * 4 + 3]).toBe(0);
+  });
+});
+
+describe('fillPolygon', () => {
+  it('fills a rectangle between two corner pixels, both included', () => {
+    const filled = fillPolygon(rectangleCorners({ x: 3, y: 2 }, { x: 1, y: 1 }), 5, 4);
+    expect(toRows(filled, 5)).toEqual(['.....', '.###.', '.###.', '.....']);
+  });
+
+  it('fills a triangle by pixel centres', () => {
+    const triangle = [
+      { x: 0, y: 0 },
+      { x: 6, y: 0 },
+      { x: 0, y: 6 },
+    ];
+    expect(toRows(fillPolygon(triangle, 6, 6), 6)).toEqual([
+      '#####.',
+      '####..',
+      '###...',
+      '##....',
+      '#.....',
+      '......',
+    ]);
+  });
+
+  it('leaves the hole of a self-crossing outline empty (even-odd)', () => {
+    // A square drawn twice around: outer, then inner in the same path.
+    const ring = [
+      { x: 0, y: 0 },
+      { x: 6, y: 0 },
+      { x: 6, y: 6 },
+      { x: 0, y: 6 },
+      { x: 0, y: 0 },
+      { x: 2, y: 2 },
+      { x: 2, y: 4 },
+      { x: 4, y: 4 },
+      { x: 4, y: 2 },
+      { x: 2, y: 2 },
+    ];
+    const rows = toRows(fillPolygon(ring, 6, 6), 6);
+    expect(rows[0]).toBe('######');
+    expect(rows[2]).toBe('##..##');
+  });
+
+  it('clips to the image and needs at least three points', () => {
+    const big = rectangleCorners({ x: -5, y: -5 }, { x: 10, y: 10 });
+    expect(area(fillPolygon(big, 4, 3))).toBe(12);
+    expect(area(fillPolygon(big.slice(0, 2), 4, 3))).toBe(0);
+  });
+});
+
+describe('masksAt', () => {
+  const stereo = { name: 'stereo-system', pixels: mask(['###']), depth: 0, area: 3 };
+  const speaker = { name: 'speaker', pixels: mask(['.##']), depth: 0, area: 2 };
+  const clock = { name: 'clock', pixels: mask(['..#']), depth: 1, area: 1 };
+
+  it('lists every mask at the pixel, the most specific first', () => {
+    expect(masksAt([stereo, speaker], 1)).toEqual(['speaker', 'stereo-system']);
+    expect(masksAt([stereo, speaker], 0)).toEqual(['stereo-system']);
+  });
+
+  it('keeps only the masks with the highest depth', () => {
+    expect(masksAt([stereo, speaker, clock], 2)).toEqual(['clock']);
+  });
+
+  it('finds nothing where there is no mask', () => {
+    expect(masksAt([speaker], 0)).toEqual([]);
   });
 });
 
