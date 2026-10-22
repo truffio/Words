@@ -1,6 +1,7 @@
 {
   "id": "bedroom",
   "title": "Bedroom",
+  "draft": true,
   "objects": [
     { "id": "hanger", "difficulty": 2 },
     { "id": "closet", "difficulty": 1 },

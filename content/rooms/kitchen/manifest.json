@@ -1,6 +1,7 @@
 {
   "id": "kitchen",
   "title": "Kitchen",
+  "draft": true,
   "objects": [
     { "id": "dish-rack", "difficulty": 2 },
     { "id": "steamer", "difficulty": 3 },
