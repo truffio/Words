@@ -258,5 +258,417 @@
     "label": "end table",
     "prompt": "Find the end table.",
     "accepted": ["end table", "side table"]
+  },
+  "dish-rack": {
+    "label": "dish rack",
+    "prompt": "Find the dish rack.",
+    "accepted": ["dish rack", "dish drainer", "drying rack"]
+  },
+  "steamer": {
+    "label": "steamer",
+    "prompt": "Find the steamer.",
+    "accepted": ["steamer"]
+  },
+  "can-opener": {
+    "label": "can opener",
+    "prompt": "Find the can opener.",
+    "accepted": ["can opener", "tin opener"]
+  },
+  "frying-pan": {
+    "label": "frying pan",
+    "prompt": "Find the frying pan.",
+    "accepted": ["frying pan", "skillet", "fry pan"]
+  },
+  "bottle-opener": {
+    "label": "bottle opener",
+    "prompt": "Find the bottle opener.",
+    "accepted": ["bottle opener"]
+  },
+  "strainer": {
+    "label": "strainer",
+    "prompt": "Find the strainer.",
+    "accepted": ["strainer", "colander", "sieve"]
+  },
+  "saucepan": {
+    "label": "saucepan",
+    "prompt": "Find the saucepan.",
+    "accepted": ["saucepan", "sauce pan"]
+  },
+  "lid": {
+    "label": "lid",
+    "prompt": "Find the lid.",
+    "accepted": ["lid", "pot lid"]
+  },
+  "dishwashing-liquid": {
+    "label": "dishwashing liquid",
+    "prompt": "Find the dishwashing liquid.",
+    "accepted": ["dishwashing liquid", "dish soap", "washing up liquid"]
+  },
+  "scouring-pad": {
+    "label": "scouring pad",
+    "prompt": "Find the scouring pad.",
+    "accepted": ["scouring pad", "sponge"]
+  },
+  "blender": {
+    "label": "blender",
+    "prompt": "Find the blender.",
+    "accepted": ["blender"]
+  },
+  "pot": {
+    "label": "pot",
+    "prompt": "Find the pot.",
+    "accepted": ["pot", "stockpot"]
+  },
+  "casserole-dish": {
+    "label": "casserole dish",
+    "prompt": "Find the casserole dish.",
+    "accepted": ["casserole dish", "baking dish", "casserole"]
+  },
+  "canister-set": {
+    "label": "canister set",
+    "prompt": "Find the canister set.",
+    "accepted": ["canister set", "canisters"]
+  },
+  "toaster": {
+    "label": "toaster",
+    "prompt": "Find the toaster.",
+    "accepted": ["toaster"]
+  },
+  "roasting-pan": {
+    "label": "roasting pan",
+    "prompt": "Find the roasting pan.",
+    "accepted": ["roasting pan", "roaster"]
+  },
+  "dish-towel": {
+    "label": "dish towel",
+    "prompt": "Find the dish towel.",
+    "accepted": ["dish towel", "tea towel"]
+  },
+  "freezer": {
+    "label": "freezer",
+    "prompt": "Find the freezer.",
+    "accepted": ["freezer"]
+  },
+  "ice-tray": {
+    "label": "ice tray",
+    "prompt": "Find the ice tray.",
+    "accepted": ["ice tray", "ice cube tray"]
+  },
+  "cabinet": {
+    "label": "cabinet",
+    "prompt": "Find the cabinet.",
+    "accepted": ["cabinet"]
+  },
+  "microwave-oven": {
+    "label": "microwave oven",
+    "prompt": "Find the microwave oven.",
+    "accepted": ["microwave oven", "microwave"]
+  },
+  "mixing-bowl": {
+    "label": "mixing bowl",
+    "prompt": "Find the mixing bowl.",
+    "accepted": ["mixing bowl", "bowl"]
+  },
+  "rolling-pin": {
+    "label": "rolling pin",
+    "prompt": "Find the rolling pin.",
+    "accepted": ["rolling pin"]
+  },
+  "cutting-board": {
+    "label": "cutting board",
+    "prompt": "Find the cutting board.",
+    "accepted": ["cutting board", "chopping board"]
+  },
+  "counter": {
+    "label": "counter",
+    "prompt": "Find the counter.",
+    "accepted": ["counter", "countertop", "worktop"]
+  },
+  "tea-kettle": {
+    "label": "tea kettle",
+    "prompt": "Find the tea kettle.",
+    "accepted": ["tea kettle", "kettle"]
+  },
+  "burner": {
+    "label": "burner",
+    "prompt": "Find the burner.",
+    "accepted": ["burner"]
+  },
+  "coffee-maker": {
+    "label": "coffee maker",
+    "prompt": "Find the coffee maker.",
+    "accepted": ["coffee maker", "coffee machine"]
+  },
+  "oven": {
+    "label": "oven",
+    "prompt": "Find the oven.",
+    "accepted": ["oven"]
+  },
+  "oven-drawer": {
+    "label": "oven drawer",
+    "prompt": "Find the oven drawer.",
+    "accepted": ["oven drawer"]
+  },
+  "pot-holder": {
+    "label": "pot holder",
+    "prompt": "Find the pot holder.",
+    "accepted": ["pot holder", "potholder"]
+  },
+  "hanger": {
+    "label": "hanger",
+    "prompt": "Find the hanger.",
+    "accepted": ["hanger", "coat hanger", "clothes hanger"]
+  },
+  "closet": {
+    "label": "closet",
+    "prompt": "Find the closet.",
+    "accepted": ["closet", "wardrobe"]
+  },
+  "jewelry-box": {
+    "label": "jewelry box",
+    "prompt": "Find the jewelry box.",
+    "accepted": ["jewelry box", "jewellery box"]
+  },
+  "comb": {
+    "label": "comb",
+    "prompt": "Find the comb.",
+    "accepted": ["comb"]
+  },
+  "hairbrush": {
+    "label": "hairbrush",
+    "prompt": "Find the hairbrush.",
+    "accepted": ["hairbrush", "hair brush", "brush"]
+  },
+  "alarm-clock": {
+    "label": "alarm clock",
+    "prompt": "Find the alarm clock.",
+    "accepted": ["alarm clock", "clock", "alarm"]
+  },
+  "dresser": {
+    "label": "dresser",
+    "prompt": "Find the dresser.",
+    "accepted": ["dresser", "chest of drawers"]
+  },
+  "air-conditioner": {
+    "label": "air conditioner",
+    "prompt": "Find the air conditioner.",
+    "accepted": ["air conditioner", "air conditioning", "ac"]
+  },
+  "blinds": {
+    "label": "blinds",
+    "prompt": "Find the blinds.",
+    "accepted": ["blinds", "blind", "window blinds"]
+  },
+  "box-of-tissues": {
+    "label": "box of tissues",
+    "prompt": "Find the box of tissues.",
+    "accepted": ["box of tissues", "tissues", "tissue box", "tissue"]
+  },
+  "headboard": {
+    "label": "headboard",
+    "prompt": "Find the headboard.",
+    "accepted": ["headboard"]
+  },
+  "pillowcase": {
+    "label": "pillowcase",
+    "prompt": "Find the pillowcase.",
+    "accepted": ["pillowcase", "pillow case"]
+  },
+  "mattress": {
+    "label": "mattress",
+    "prompt": "Find the mattress.",
+    "accepted": ["mattress"]
+  },
+  "box-spring": {
+    "label": "box spring",
+    "prompt": "Find the box spring.",
+    "accepted": ["box spring", "boxspring"]
+  },
+  "bed-sheets": {
+    "label": "bed sheets",
+    "prompt": "Find the bed sheets.",
+    "accepted": ["bed sheets", "bed sheet", "bedsheets", "sheets", "sheet"]
+  },
+  "blanket": {
+    "label": "blanket",
+    "prompt": "Find the blanket.",
+    "accepted": ["blanket", "throw"]
+  },
+  "comforter": {
+    "label": "comforter",
+    "prompt": "Find the comforter.",
+    "accepted": ["comforter", "duvet", "quilt"]
+  },
+  "bedspread": {
+    "label": "bedspread",
+    "prompt": "Find the bedspread.",
+    "accepted": ["bedspread", "bed spread", "bedcover"]
+  },
+  "footboard": {
+    "label": "footboard",
+    "prompt": "Find the footboard.",
+    "accepted": ["footboard"]
+  },
+  "light-switch": {
+    "label": "light switch",
+    "prompt": "Find the light switch.",
+    "accepted": ["light switch", "switch"]
+  },
+  "telephone": {
+    "label": "telephone",
+    "prompt": "Find the telephone.",
+    "accepted": ["telephone", "phone"]
+  },
+  "night-table": {
+    "label": "night table",
+    "prompt": "Find the night table.",
+    "accepted": ["night table", "nightstand", "bedside table"]
+  },
+  "floor": {
+    "label": "floor",
+    "prompt": "Find the floor.",
+    "accepted": ["floor"]
+  },
+  "curtain-rod": {
+    "label": "curtain rod",
+    "prompt": "Find the curtain rod.",
+    "accepted": ["curtain rod", "shower rod"]
+  },
+  "curtain-rings": {
+    "label": "curtain rings",
+    "prompt": "Find the curtain rings.",
+    "accepted": ["curtain rings", "curtain ring", "shower rings", "rings"]
+  },
+  "shower-curtain": {
+    "label": "shower curtain",
+    "prompt": "Find the shower curtain.",
+    "accepted": ["shower curtain", "curtain"]
+  },
+  "shower-cap": {
+    "label": "shower cap",
+    "prompt": "Find the shower cap.",
+    "accepted": ["shower cap"]
+  },
+  "shower-head": {
+    "label": "shower head",
+    "prompt": "Find the shower head.",
+    "accepted": ["shower head", "showerhead", "shower"]
+  },
+  "soap-dish": {
+    "label": "soap dish",
+    "prompt": "Find the soap dish.",
+    "accepted": ["soap dish"]
+  },
+  "sponge": {
+    "label": "sponge",
+    "prompt": "Find the sponge.",
+    "accepted": ["sponge"]
+  },
+  "shampoo-bottle": {
+    "label": "shampoo bottle",
+    "prompt": "Find the shampoo bottle.",
+    "accepted": ["shampoo bottle", "shampoo"]
+  },
+  "drain": {
+    "label": "drain",
+    "prompt": "Find the drain.",
+    "accepted": ["drain", "plughole"]
+  },
+  "stopper": {
+    "label": "stopper",
+    "prompt": "Find the stopper.",
+    "accepted": ["stopper", "plug"]
+  },
+  "bathroom-rug": {
+    "label": "bathroom rug",
+    "prompt": "Find the bathroom rug.",
+    "accepted": ["bathroom rug", "bath rug", "bath mat", "mat", "rug"]
+  },
+  "wastepaper-basket": {
+    "label": "wastepaper basket",
+    "prompt": "Find the wastepaper basket.",
+    "accepted": [
+      "wastepaper basket",
+      "waste basket",
+      "wastebasket",
+      "trash can",
+      "garbage can",
+      "bin"
+    ]
+  },
+  "medicine-cabinet": {
+    "label": "medicine cabinet",
+    "prompt": "Find the medicine cabinet.",
+    "accepted": ["medicine cabinet", "bathroom cabinet", "cabinet"]
+  },
+  "bar-of-soap": {
+    "label": "bar of soap",
+    "prompt": "Find the bar of soap.",
+    "accepted": ["bar of soap", "soap"]
+  },
+  "toothpaste": {
+    "label": "toothpaste",
+    "prompt": "Find the toothpaste.",
+    "accepted": ["toothpaste"]
+  },
+  "hot-water-faucet": {
+    "label": "hot-water faucet",
+    "prompt": "Find the hot-water faucet.",
+    "accepted": ["hot water faucet", "hot water tap", "hot tap"]
+  },
+  "cold-water-faucet": {
+    "label": "cold-water faucet",
+    "prompt": "Find the cold-water faucet.",
+    "accepted": ["cold water faucet", "cold water tap", "cold tap"]
+  },
+  "nailbrush": {
+    "label": "nailbrush",
+    "prompt": "Find the nailbrush.",
+    "accepted": ["nailbrush", "nail brush"]
+  },
+  "face-cloth": {
+    "label": "face cloth",
+    "prompt": "Find the face cloth.",
+    "accepted": ["face cloth", "facecloth", "washcloth", "flannel"]
+  },
+  "hand-towel": {
+    "label": "hand towel",
+    "prompt": "Find the hand towel.",
+    "accepted": ["hand towel"]
+  },
+  "bath-towel": {
+    "label": "bath towel",
+    "prompt": "Find the bath towel.",
+    "accepted": ["bath towel"]
+  },
+  "towel-rack": {
+    "label": "towel rack",
+    "prompt": "Find the towel rack.",
+    "accepted": ["towel rack", "towel rail", "towel bar"]
+  },
+  "hair-dryer": {
+    "label": "hair dryer",
+    "prompt": "Find the hair dryer.",
+    "accepted": ["hair dryer", "hairdryer", "blow dryer"]
+  },
+  "floor-tiles": {
+    "label": "floor tiles",
+    "prompt": "Find the floor tiles.",
+    "accepted": ["floor tiles", "floor tile", "tiles"]
+  },
+  "toilet-paper": {
+    "label": "toilet paper",
+    "prompt": "Find the toilet paper.",
+    "accepted": ["toilet paper", "toilet roll"]
+  },
+  "toilet-brush": {
+    "label": "toilet brush",
+    "prompt": "Find the toilet brush.",
+    "accepted": ["toilet brush"]
+  },
+  "scale": {
+    "label": "scale",
+    "prompt": "Find the scale.",
+    "accepted": ["scale", "scales", "bathroom scale"]
   }
 }
