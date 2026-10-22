@@ -1,4 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
+
+/** The number of objects in a room, read from its manifest (independently of the game). */
+const objectCount = (roomId) =>
+  JSON.parse(readFileSync(`content/rooms/${roomId}/manifest.json`, 'utf8')).objects.length;
 
 /**
  * Opens the game with a fixed seed and starts a round in a room (the kitchen by default).
@@ -89,7 +94,7 @@ test('a full round ends with a summary and can be replayed', async ({ page }) =>
 
   // A round asks for every object of the room once.
   const { roundLength } = await state(page);
-  expect(roundLength).toBe(9);
+  expect(roundLength).toBe(objectCount('kitchen'));
   const asked = new Set();
   for (let n = 1; n <= roundLength; n++) {
     await waitForChallenge(page, n);
@@ -100,7 +105,9 @@ test('a full round ends with a summary and can be replayed', async ({ page }) =>
   expect(asked.size).toBe(roundLength);
 
   await expect(page.getByRole('heading', { name: 'Well done!' })).toBeVisible();
-  await expect(page.getByTestId('summary')).toHaveText('You found 9 out of 9.');
+  await expect(page.getByTestId('summary')).toHaveText(
+    `You found ${roundLength} out of ${roundLength}.`,
+  );
 
   await page.getByRole('button', { name: 'Play again' }).click();
   await waitForChallenge(page, 1);
