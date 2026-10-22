@@ -24,7 +24,6 @@
     { "id": "blanket", "difficulty": 1 },
     { "id": "bed", "difficulty": 1 },
     { "id": "comforter", "difficulty": 3 },
-    { "id": "bedspread", "difficulty": 3 },
     { "id": "footboard", "difficulty": 3 },
     { "id": "light-switch", "difficulty": 2 },
     { "id": "telephone", "difficulty": 1 },
