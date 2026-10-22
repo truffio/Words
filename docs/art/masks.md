@@ -31,10 +31,17 @@ The tool is not part of the game build; it only exists on the dev server.
    - **Click another part** of the object to add it (a tap and its sink, the legs of a table).
    - **Shift+click** (or right-click) a part that should **not** be included.
    - **Magic wand:** fills a flat-coloured area up to the outlines, handy for cartoon art. Click to add an area, Shift+click to remove one. The tolerance slider sets how different a colour can be and still be filled.
-   - **Undo** (Ctrl+Z) and **Clear**.
+   - **Draw the area by hand** when smart select gets it wrong. Each shape is added to the mask; hold **Shift** (or use the right button) to remove it instead:
+     - **Rectangle:** drag a box.
+     - **Points:** click the corners one by one, then click the first corner (in yellow), double-click, or press Enter. Esc cancels; Ctrl+Z removes the last corner.
+     - **Free curve:** drag around the area; the outline closes itself when you let go.
+   - **Undo** (Ctrl+Z) and **Clear**. Undo removes a whole shape or wand area at a time.
 5. **Save mask.** The tool writes `content/rooms/<room>/masks/<objectId>.png` at 2048 × 1536, and moves on.
 
-Other objects' masks are shown in faint blue, so you can see what is still missing.
+### Checking the Masks
+
+- **Show saved masks** (or the **M** key) shows every saved mask in its own colour, labelled with its name; where masks overlap, the stripes show every object there. It is off by default, so it does not get in the way while drawing.
+- **Test taps:** click anywhere on the painting to see which objects a tap there detects in the game: every mask at that point (they share it, unless one has a higher `depth`), the most specific first. That is the one a wrong tap is shown as. Their names appear next to the tap, and their whole masks stay highlighted (the rest of the painting dimmed) until the next click. Clicks in test mode never change a mask, and the test uses the **saved** masks. The game also pads hit areas a little (8 px, and up to the minimum tap size); `reports/rooms/<room>-debug-hits.png` shows those final areas after `npm run build:rooms`.
 
 ### Tips
 
