@@ -670,5 +670,85 @@
     "label": "scale",
     "prompt": "Find the scale.",
     "accepted": ["scale", "scales", "bathroom scale"]
+  },
+  "bench": {
+    "label": "bench",
+    "prompt": "Find the bench.",
+    "accepted": ["bench"]
+  },
+  "shelving-unit": {
+    "label": "shelving unit",
+    "prompt": "Find the shelving unit.",
+    "accepted": ["shelving unit", "shelves", "shelf", "shelving"]
+  },
+  "locker": {
+    "label": "locker",
+    "prompt": "Find the locker.",
+    "accepted": ["locker"]
+  },
+  "tires": {
+    "label": "tires",
+    "prompt": "Find the tires.",
+    "accepted": ["tires", "tire", "tyres", "tyre", "wheels"]
+  },
+  "car": {
+    "label": "car",
+    "prompt": "Find the car.",
+    "accepted": ["car"]
+  },
+  "workbench": {
+    "label": "workbench",
+    "prompt": "Find the workbench.",
+    "accepted": ["workbench", "working bench", "work bench"]
+  },
+  "boots": {
+    "label": "boots",
+    "prompt": "Find the boots.",
+    "accepted": ["boots", "boot", "rain boots", "rubber boots"]
+  },
+  "umbrella": {
+    "label": "umbrella",
+    "prompt": "Find the umbrella.",
+    "accepted": ["umbrella"]
+  },
+  "trash-can": {
+    "label": "trash can",
+    "prompt": "Find the trash can.",
+    "accepted": ["trash can", "garbage can", "bin", "trash bin"]
+  },
+  "cap": {
+    "label": "cap",
+    "prompt": "Find the cap.",
+    "accepted": ["cap", "baseball cap", "hat"]
+  },
+  "shovel": {
+    "label": "shovel",
+    "prompt": "Find the shovel.",
+    "accepted": ["shovel", "spade"]
+  },
+  "soccer-ball": {
+    "label": "soccer ball",
+    "prompt": "Find the soccer ball.",
+    "accepted": ["soccer ball", "football", "ball"]
+  },
+  "bicycle": {
+    "label": "bicycle",
+    "prompt": "Find the bicycle.",
+    "accepted": ["bicycle", "bike"]
+  },
+  "scooter": {
+    "label": "scooter",
+    "prompt": "Find the scooter.",
+    "accepted": ["scooter"]
+  },
+  "garden-hose": {
+    "label": "garden hose",
+    "prompt": "Find the garden hose.",
+    "accepted": ["garden hose", "hose"]
+  },
+  "tools": {
+    "label": "tools",
+    "prompt": "Find the tools",
+    "accepted": ["tools", "tool"]
   }
 }
