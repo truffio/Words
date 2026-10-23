@@ -1,0 +1,27 @@
+{
+  "id": "garage",
+  "title": "Garage",
+  "draft": true,
+  "objects": [
+    { "id": "bench", "difficulty": 1 },
+    { "id": "shelving-unit", "difficulty": 2 },
+    { "id": "sink", "difficulty": 1 },
+    { "id": "locker", "difficulty": 2 },
+    { "id": "tires", "difficulty": 2 },
+    { "id": "car", "difficulty": 1 },
+    { "id": "cabinet", "difficulty": 1 },
+    { "id": "workbench", "difficulty": 2 },
+    { "id": "refrigerator", "difficulty": 1 },
+    { "id": "boots", "difficulty": 1 },
+    { "id": "umbrella", "difficulty": 1 },
+    { "id": "trash-can", "difficulty": 1 },
+    { "id": "cap", "difficulty": 2 },
+    { "id": "shovel", "difficulty": 2 },
+    { "id": "soccer-ball", "difficulty": 1 },
+    { "id": "bicycle", "difficulty": 1 },
+    { "id": "scooter", "difficulty": 2 },
+    { "id": "garden-hose", "difficulty": 2 },
+    { "id": "tools", "difficulty": 1 },
+    { "id": "lamp", "difficulty": 2 }
+  ]
+}
