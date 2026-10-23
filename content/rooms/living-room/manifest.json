@@ -14,7 +14,6 @@
     { "id": "log", "difficulty": 2 },
     { "id": "banister", "difficulty": 3 },
     { "id": "staircase", "difficulty": 2 },
-    { "id": "step", "difficulty": 2 },
     { "id": "desk", "difficulty": 1 },
     { "id": "carpet", "difficulty": 1 },
     { "id": "recliner", "difficulty": 3 },
@@ -30,6 +29,7 @@
     { "id": "coffee-table", "difficulty": 2 },
     { "id": "lampshade", "difficulty": 3 },
     { "id": "lamp", "difficulty": 1 },
-    { "id": "end-table", "difficulty": 3 }
+    { "id": "end-table", "difficulty": 3 },
+    { "id": "step", "difficulty": 1 }
   ]
 }
