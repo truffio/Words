@@ -1,8 +1,14 @@
 /**
- * Dev-server API for the mask tool (Vite plugin, `vite dev` only). Lists rooms and
- * saves, renames, and deletes masks in content/rooms/<room>/masks/.
+ * Dev-server API for the mask tool (Vite plugin, `vite dev` only). Lists rooms, edits
+ * their words (words.js), and saves, renames, and deletes masks in
+ * content/rooms/<room>/masks/.
  *
+ *   GET    /__mask-tool/lexicon
  *   GET    /__mask-tool/rooms
+ *   POST   /__mask-tool/rooms/<room>/words                 body: { id?, label, prompt?,
+ *                                                          accepted?, difficulty? }
+ *   PATCH  /__mask-tool/rooms/<room>/words/<id>            body: { difficulty }
+ *   DELETE /__mask-tool/rooms/<room>/words/<id>            also deletes its masks
  *   GET    /__mask-tool/rooms/<room>/painting              room.png
  *   PUT    /__mask-tool/rooms/<room>/painting[?clearMasks=1]  body: any image; resized
  *                                                          (and cropped to 4:3) to room.png
@@ -20,10 +26,12 @@ import sharp from 'sharp';
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../../src/core/display.js';
 import { parseMaskName } from '../lib/room-build.js';
 import { normalisePainting } from './painting.js';
+import { createWords } from './words.js';
 
 const ROOM_ID = /^[a-z]+(?:-[a-z]+)*$/;
 const MAX_MASK = 20 * 1024 * 1024;
 const MAX_PAINTING = 60 * 1024 * 1024;
+const MAX_JSON = 64 * 1024;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -45,6 +53,15 @@ async function readBody(req, limit) {
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
+}
+
+async function readJsonBody(req) {
+  try {
+    return JSON.parse((await readBody(req, MAX_JSON)).toString('utf8'));
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    throw new HttpError(400, 'The request is not valid JSON.');
+  }
 }
 
 /** @param {string} contentDir */
@@ -98,6 +115,7 @@ function createApi(contentDir) {
               id: o.id,
               label: lexicon[o.id]?.label ?? o.id,
               depth: o.depth ?? 0,
+              difficulty: o.difficulty ?? null,
             })),
             masks: await listMasks(id),
           };
@@ -200,6 +218,7 @@ function createApi(contentDir) {
  */
 export function maskToolServer({ contentDir = path.resolve('content') } = {}) {
   const api = createApi(contentDir);
+  const words = createWords(contentDir);
 
   return {
     name: 'words-mask-tool',
@@ -224,6 +243,23 @@ export function maskToolServer({ contentDir = path.resolve('content') } = {}) {
 
           if (req.method === 'GET' && parts.length === 1 && parts[0] === 'rooms') {
             return send(200, await api.rooms());
+          }
+          if (req.method === 'GET' && parts.length === 1 && parts[0] === 'lexicon') {
+            return send(200, await words.lexicon());
+          }
+          if (parts[0] === 'rooms' && parts[2] === 'words') {
+            const [, roomId, , id] = parts;
+            if (req.method === 'POST' && parts.length === 3) {
+              return send(200, await words.add(roomId, await readJsonBody(req)));
+            }
+            if (req.method === 'PATCH' && parts.length === 4) {
+              const { difficulty } = await readJsonBody(req);
+              await words.setDifficulty(roomId, id, difficulty);
+              return send(200, { updated: id });
+            }
+            if (req.method === 'DELETE' && parts.length === 4) {
+              return send(200, await words.remove(roomId, id));
+            }
           }
           if (parts[0] === 'rooms' && parts[2] === 'painting' && parts.length === 3) {
             if (req.method === 'GET') return sendPng(await api.painting(parts[1]));
