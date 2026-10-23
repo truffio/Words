@@ -115,10 +115,20 @@ test('a full round ends with a summary and can be replayed', async ({ page }) =>
 });
 
 test('a tap on shared pixels counts for every object there', async ({ page }) => {
-  // In the living room, seed 17 asks for the stereo system first; its mask contains
-  // both speakers, which the speaker's mask covers too.
-  await startRound(page, 17, FEEDBACK_MS, 'Living room');
-  expect((await state(page)).challenge).toBe('stereo-system');
+  // In the living room, the stereo system's mask contains both speakers, which the
+  // speaker's mask covers too. A round asks for every object once, so answer the others
+  // until the stereo system comes up (the order depends on the seed and the manifest).
+  test.setTimeout(120_000);
+  await startRound(page, 17, FAST_MS, 'Living room');
+  let n = 1;
+  for (;;) {
+    await waitForChallenge(page, n);
+    const { challenge } = await state(page);
+    if (challenge === 'stereo-system') break;
+    await clickObject(page, challenge);
+    n++;
+  }
+  await page.evaluate((ms) => window.__wordsTest.setNextDelay(ms), FEEDBACK_MS);
 
   const onSpeaker = await page.evaluate(() =>
     window.__wordsTest.sharedPoint(['speaker', 'stereo-system']),
@@ -126,5 +136,5 @@ test('a tap on shared pixels counts for every object there', async ({ page }) =>
   expect(onSpeaker).not.toBeNull();
   await page.mouse.click(onSpeaker.x, onSpeaker.y);
   await expect(page.getByTestId('feedback')).toHaveText("Great job! That's the stereo system.");
-  await expect(page.getByTestId('score')).toHaveText('1 / 1');
+  await expect(page.getByTestId('score')).toHaveText(`${n} / ${n}`);
 });
