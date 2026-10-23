@@ -15,7 +15,6 @@
     { "id": "blinds", "difficulty": 2 },
     { "id": "box-of-tissues", "difficulty": 2 },
     { "id": "headboard", "difficulty": 3 },
-    { "id": "pillowcase", "difficulty": 3 },
     { "id": "pillow", "difficulty": 1 },
     { "id": "mattress", "difficulty": 2 },
     { "id": "box-spring", "difficulty": 3 },
