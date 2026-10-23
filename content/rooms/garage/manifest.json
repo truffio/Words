@@ -1,7 +1,6 @@
 {
   "id": "garage",
   "title": "Garage",
-  "draft": true,
   "objects": [
     { "id": "bench", "difficulty": 1 },
     { "id": "shelving-unit", "difficulty": 2 },
