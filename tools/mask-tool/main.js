@@ -3,7 +3,8 @@
  * painting. Smart select uses Segment Anything; the magic wand fills flat-coloured areas;
  * the rectangle, points, and free-curve tools draw an area by hand. Saved masks can be
  * shown on demand, and the test mode lists the objects a tap detects, by the game's
- * rules. Masks are saved through the dev-server API in server.js.
+ * rules. The room's words can be added, removed, and given a difficulty. Masks and words
+ * are saved through the dev-server API in server.js.
  */
 import { LOGICAL_HEIGHT as H, LOGICAL_WIDTH as W } from '../../src/core/display.js';
 import {
@@ -22,6 +23,7 @@ import {
   rgbaToMask,
 } from './mask-ops.js';
 import { loadSam } from './sam.js';
+import { idFromLabel } from './word-names.js';
 
 const API = '/__mask-tool';
 const $ = (id) => document.getElementById(id);
@@ -102,6 +104,10 @@ const state = {
   history: [],
   dirty: false,
   mode: 'sam',
+  /** @type {Record<string, { label: string, prompt: string, accepted: string[] }>} */
+  lexicon: {},
+  /** Whether the add-word form's ID was typed by hand (else it follows the word). */
+  wordIdEdited: false,
 };
 
 // --- Status and Segment Anything -------------------------------------------------------
@@ -210,6 +216,7 @@ async function loadRooms(selectId) {
 
 async function openRoom(roomId) {
   state.room = state.rooms.find((r) => r.id === roomId);
+  closeWordForm();
   setStatus(`Loading ${state.room.title}…`);
   let painting;
   try {
@@ -330,7 +337,8 @@ function selectInstance(name, { rename = null } = {}) {
   state.shape = null;
   state.dirty = false;
 
-  $('editing').hidden = !name;
+  /** @type {HTMLFieldSetElement} */ ($('editing')).disabled = !name;
+  $('editing-label').textContent = name ? 'Editing' : 'Pick an object to edit its mask';
   $('instance-name').textContent = name ?? '';
   $('delete').disabled = !name || !state.saved.has(name);
   renderObjects();
@@ -471,6 +479,134 @@ async function refreshRoom(selectName) {
   state.room = state.rooms.find((r) => r.id === roomId);
   await loadSavedMasks();
   selectInstance(selectName);
+}
+
+// --- Words of the room ---------------------------------------------------------------------
+
+/** Whether unsaved changes to the mask may be dropped (asks if there are any). */
+function mayDiscard() {
+  if (state.dirty && !confirm('Discard the unsaved changes to this mask?')) return false;
+  state.dirty = false;
+  return true;
+}
+
+const wordField = (id) => /** @type {HTMLInputElement} */ ($(id));
+
+/** The lexicon entry a typed word refers to, by label or ID, if there is one. */
+function lexiconMatch(text) {
+  const typed = text.trim().toLowerCase();
+  if (!typed) return null;
+  const id = idFromLabel(typed);
+  if (state.lexicon[id]) return id;
+  return Object.keys(state.lexicon).find((k) => state.lexicon[k].label === typed) ?? null;
+}
+
+async function openWordForm() {
+  try {
+    state.lexicon = await api('/lexicon');
+  } catch (error) {
+    setStatus(`Could not load the lexicon: ${error.message}`);
+    return;
+  }
+  const inRoom = new Set(state.room.objects.map((o) => o.id));
+  $('lexicon-words').replaceChildren(
+    ...Object.entries(state.lexicon)
+      .filter(([id]) => !inRoom.has(id))
+      .map(([id, entry]) => new Option(id, entry.label)),
+  );
+  /** @type {HTMLFormElement} */ ($('word-form')).reset();
+  state.wordIdEdited = false;
+  updateWordForm();
+  $('word-form').hidden = false;
+  $('add-word').setAttribute('aria-expanded', 'true');
+  wordField('word-label').focus();
+}
+
+function closeWordForm() {
+  $('word-form').hidden = true;
+  $('add-word').setAttribute('aria-expanded', 'false');
+}
+
+/** Shows whether the typed word reuses a lexicon entry, and fills in the derived fields. */
+function updateWordForm() {
+  const label = wordField('word-label').value.trim();
+  const match = lexiconMatch(label);
+  $('word-new').hidden = !!match;
+  $('word-reuse').hidden = !match;
+  if (match) {
+    const entry = state.lexicon[match];
+    $('word-reuse').textContent =
+      `“${entry.label}” (${match}) is already in the lexicon and will be reused ` +
+      `(accepts: ${entry.accepted.join(', ')}).`;
+    return;
+  }
+  if (!state.wordIdEdited) wordField('word-id').value = idFromLabel(label);
+  wordField('word-prompt').placeholder = label ? `Find the ${label}.` : '';
+}
+
+async function addWord() {
+  if (!mayDiscard()) return;
+  const label = wordField('word-label').value.trim();
+  const match = lexiconMatch(label);
+  const difficulty = Number(/** @type {HTMLSelectElement} */ ($('word-difficulty')).value);
+  const word = match
+    ? { id: match, difficulty }
+    : {
+        id: wordField('word-id').value.trim(),
+        label,
+        prompt: wordField('word-prompt').value.trim(),
+        accepted: wordField('word-accepted').value.split(','),
+        difficulty,
+      };
+  try {
+    const { id, reused } = await api(`/rooms/${state.room.id}/words`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(word),
+    });
+    closeWordForm();
+    await refreshRoom(null);
+    startNewInstance(id);
+    setStatus(
+      `Added “${id}” to ${state.room.title}${reused ? ' (lexicon entry reused)' : ''}. ` +
+        'Click it in the painting to make its mask.',
+    );
+  } catch (error) {
+    setStatus(`Could not add the word: ${error.message}`);
+  }
+}
+
+async function removeWord(object) {
+  const masks = state.room.masks.filter((n) => n === object.id || n.startsWith(`${object.id}@`));
+  const question =
+    `Remove “${object.label}” from ${state.room.title}?` +
+    (masks.length ? ` Its ${masks.length} mask(s) will be deleted.` : '') +
+    ' Its lexicon entry stays.';
+  if (!confirm(question) || !mayDiscard()) return;
+  try {
+    const { deletedMasks } = await api(`/rooms/${state.room.id}/words/${object.id}`, {
+      method: 'DELETE',
+    });
+    await refreshRoom(null);
+    setStatus(`Removed “${object.label}”; ${deletedMasks} mask(s) deleted.`);
+  } catch (error) {
+    setStatus(`Could not remove the word: ${error.message}`);
+  }
+}
+
+async function setDifficulty(object, difficulty) {
+  try {
+    await api(`/rooms/${state.room.id}/words/${object.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ difficulty }),
+    });
+    object.difficulty = difficulty;
+    setStatus(`“${object.label}” now has difficulty ${difficulty}.`);
+  } catch (error) {
+    setStatus(`Could not change the difficulty: ${error.message}`);
+    renderObjects();
+  }
 }
 
 // --- Drawing tools (rectangle, points, free curve) ---------------------------------------
@@ -738,10 +874,30 @@ function renderObjects() {
       const masks = state.room.masks.filter(
         (n) => n === object.id || n.startsWith(`${object.id}@`),
       );
+      const word = document.createElement('div');
+      word.className = 'word';
       const label = document.createElement('span');
       label.className = `label${masks.length ? '' : ' missing'}`;
       label.textContent = `${object.label}${masks.length ? '' : ' — no mask yet'}`;
-      item.append(label);
+
+      const difficulty = document.createElement('select');
+      difficulty.title = 'Difficulty (1 easiest, 3 hardest)';
+      difficulty.setAttribute('aria-label', `Difficulty of ${object.label}`);
+      difficulty.append(...[1, 2, 3].map((d) => new Option(`D${d}`, String(d))));
+      if (!object.difficulty) difficulty.prepend(new Option('D–', ''));
+      difficulty.value = String(object.difficulty ?? '');
+      difficulty.addEventListener('change', () => setDifficulty(object, Number(difficulty.value)));
+
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'remove-word';
+      removeButton.textContent = '×';
+      removeButton.title = `Remove ${object.label} from the room`;
+      removeButton.setAttribute('aria-label', `Remove ${object.label}`);
+      removeButton.addEventListener('click', () => removeWord(object));
+
+      word.append(label, difficulty, removeButton);
+      item.append(word);
 
       for (const name of masks) {
         const button = document.createElement('button');
@@ -763,6 +919,83 @@ function renderObjects() {
       return item;
     }),
   );
+}
+
+// --- Side panel width ----------------------------------------------------------------------
+
+const PANEL_WIDTH_KEY = 'words.maskTool.panelWidth';
+const PANEL_DEFAULT = 510;
+const PANEL_MIN = 280;
+/** Arrow keys move the resize handle by this much (Shift: five times more). */
+const PANEL_STEP = 16;
+
+/** The widest the panel may be: half the window, so the painting keeps room. */
+const panelMax = () => Math.max(PANEL_MIN, Math.floor(window.innerWidth / 2));
+
+let panelWidth = PANEL_DEFAULT;
+/** The width last chosen, restored as far as the window allows when it grows again. */
+let panelChosen = PANEL_DEFAULT;
+
+/** Sets the panel width, within its limits; `remember` saves it for the next session. */
+function setPanelWidth(width, { remember = false } = {}) {
+  panelWidth = Math.round(Math.min(panelMax(), Math.max(PANEL_MIN, width)));
+  document.body.style.setProperty('--panel-width', `${panelWidth}px`);
+  const handle = $('resizer');
+  handle.setAttribute('aria-valuemin', String(PANEL_MIN));
+  handle.setAttribute('aria-valuemax', String(panelMax()));
+  handle.setAttribute('aria-valuenow', String(panelWidth));
+  if (!remember) return;
+  panelChosen = panelWidth;
+  try {
+    localStorage.setItem(PANEL_WIDTH_KEY, String(panelWidth));
+  } catch {
+    // Storage can be unavailable (private window); the width then lasts this session.
+  }
+}
+
+function initPanelWidth() {
+  let saved = NaN;
+  try {
+    saved = Number(localStorage.getItem(PANEL_WIDTH_KEY));
+  } catch {
+    // As above: fall back to the default width.
+  }
+  panelChosen = saved > 0 ? saved : PANEL_DEFAULT;
+  setPanelWidth(panelChosen);
+
+  const handle = $('resizer');
+  handle.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    document.body.classList.add('resizing');
+  });
+  handle.addEventListener('pointermove', (event) => {
+    if (!handle.hasPointerCapture(event.pointerId)) return;
+    setPanelWidth(event.clientX - $('panel').getBoundingClientRect().left);
+  });
+  const endDrag = (event) => {
+    if (!handle.hasPointerCapture(event.pointerId)) return;
+    handle.releasePointerCapture(event.pointerId);
+    document.body.classList.remove('resizing');
+    setPanelWidth(panelWidth, { remember: true });
+  };
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
+  handle.addEventListener('keydown', (event) => {
+    const step = event.shiftKey ? PANEL_STEP * 5 : PANEL_STEP;
+    const target = {
+      ArrowLeft: panelWidth - step,
+      ArrowRight: panelWidth + step,
+      Home: PANEL_MIN,
+      End: panelMax(),
+    }[event.key];
+    if (target === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setPanelWidth(target, { remember: true });
+  });
+  // Keep the panel within half the window when the window shrinks.
+  window.addEventListener('resize', () => setPanelWidth(panelChosen));
 }
 
 // --- Events ------------------------------------------------------------------------------
@@ -837,6 +1070,19 @@ document.querySelectorAll('[data-candidate]').forEach((button) =>
     render();
   }),
 );
+$('add-word').addEventListener('click', () => {
+  if ($('word-form').hidden) openWordForm();
+  else closeWordForm();
+});
+$('word-cancel').addEventListener('click', closeWordForm);
+$('word-label').addEventListener('input', updateWordForm);
+$('word-id').addEventListener('input', () => {
+  state.wordIdEdited = wordField('word-id').value.trim() !== '';
+});
+$('word-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  addWord();
+});
 $('undo').addEventListener('click', undo);
 $('clear').addEventListener('click', clear);
 $('save').addEventListener('click', save);
@@ -877,6 +1123,7 @@ window.__maskTool = {
   testAt,
 };
 
+initPanelWidth();
 try {
   await loadRooms();
   await openRoom($('room').value);
